@@ -43,7 +43,7 @@ pub mod mode {
 mod tests {
 
     mod padding {
-        use crate::padding;
+        use crate::symmetric::padding;
 
         #[test]
         fn length_test() {
