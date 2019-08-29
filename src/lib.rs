@@ -1,1 +1,1 @@
-mod symmetric;
+pub mod symmetric;
