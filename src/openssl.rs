@@ -10,6 +10,7 @@ pub mod aes {
     use super::Error;
 
     const AES_MAX_NR: usize = 14;
+    pub const AES_KEY_SIZE: usize = 16;
     pub const AES_BLOCK_SIZE: usize = 16;
 
     #[repr(C)]
