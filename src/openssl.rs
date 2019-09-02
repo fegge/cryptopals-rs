@@ -71,18 +71,18 @@ pub mod aes {
         }
     }
    
-    pub fn encrypt_block<'a>(input_block: &[u8], output_block: &'a mut [u8], key: &AES_KEY) -> &'a [u8] {
+    pub fn encrypt_block<'a>(block: &'a mut [u8], key: &AES_KEY) -> &'a [u8] {
         unsafe {
-            AES_encrypt(input_block.as_ptr(), output_block.as_mut_ptr(), key);
+            AES_encrypt(block.as_ptr(), block.as_mut_ptr(), key);
         }
-        output_block
+        block
     }
-
-    pub fn decrypt_block<'a>(input_block: &[u8], output_block: &'a mut [u8], key: &AES_KEY) -> &'a [u8] {
+    
+    pub fn decrypt_block<'a>(block: &'a mut [u8], key: &AES_KEY) -> &'a [u8] {
         unsafe {
-            AES_decrypt(input_block.as_ptr(), output_block.as_mut_ptr(), key);
+            AES_decrypt(block.as_ptr(), block.as_mut_ptr(), key);
         }
-        output_block
+        block
     }
     
     #[cfg(test)]
@@ -138,17 +138,17 @@ pub mod aes {
         #[test]
         fn encrypt_test() {
             let key = AES_KEY::new_encrypt_key(&RAW_KEY).unwrap();
-            let mut ciphertext = [0; AES_BLOCK_SIZE];
-            encrypt_block(&PLAINTEXT, &mut ciphertext, &key);
-            assert_eq!(ciphertext, CIPHERTEXT);
+            let mut block = PLAINTEXT.clone();
+            encrypt_block(&mut block, &key);
+            assert_eq!(block, CIPHERTEXT);
         }
     
         #[test]
         fn decrypt_test() {
             let key = AES_KEY::new_decrypt_key(&RAW_KEY).unwrap();
-            let mut plaintext = [0; AES_BLOCK_SIZE];
-            decrypt_block(&CIPHERTEXT, &mut plaintext, &key);
-            assert_eq!(plaintext, PLAINTEXT);
+            let mut block = CIPHERTEXT.clone();
+            decrypt_block(&mut block, &key);
+            assert_eq!(block, PLAINTEXT);
         }
     }
 }
