@@ -282,5 +282,77 @@ pub mod cipher_modes {
             self.padding.unpad_buffer(buffer)
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::symmetric::padding_modes::Pkcs7;
+        use crate::symmetric::ciphers::{Cipher, Aes128};
+
+        const RAW_KEY: [u8; Aes128::KEY_SIZE] = [
+            0xc0, 0xfe, 0xfe, 0x00,
+            0xc0, 0xfe, 0xfe, 0x01,
+            0xc0, 0xfe, 0xfe, 0x02,
+            0xc0, 0xfe, 0xfe, 0x03,
+        ];
+
+        const RAW_IV: [u8; Aes128::BLOCK_SIZE] = [
+            0xc0, 0xfe, 0xfe, 0x00,
+            0xc0, 0xfe, 0xfe, 0x01,
+            0xc0, 0xfe, 0xfe, 0x02,
+            0xc0, 0xfe, 0xfe, 0x03,
+        ];
+        
+        const PLAINTEXT: [u8; 19] = [
+            0xc0, 0xfe, 0xfe, 0x00,
+            0xc0, 0xfe, 0xfe, 0x01,
+            0xc0, 0xfe, 0xfe, 0x02,
+            0xc0, 0xfe, 0xfe, 0x03,
+            0xc0, 0xfe, 0xfe
+        ];
+
+        const CIPHERTEXT: [u8; 2 * Aes128::BLOCK_SIZE] = [
+            0x10, 0xce, 0x66, 0xaf,
+            0x7a, 0x70, 0x51, 0x01,
+            0x19, 0xa2, 0x27, 0x95,
+            0x3a, 0x14, 0x71, 0x4d,
+            0x83, 0xbc, 0xd0, 0x4d,
+            0xfc, 0x8a, 0xc3, 0xca,
+            0x6d, 0x08, 0x12, 0xb8,
+            0x69, 0x90, 0x8f, 0xec
+        ];
+
+        #[test]
+        fn test_encrypt() {
+            type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+            let cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV);
+            
+            assert!(cipher.is_ok());
+            let mut cipher = cipher.unwrap();
+            
+            let mut buffer = Vec::with_capacity(2 * Aes128::BLOCK_SIZE);
+            buffer.extend(&PLAINTEXT);
+            buffer.resize(2 * Aes128::BLOCK_SIZE, 0);
+            let result = cipher.encrypt_buffer(&mut buffer, PLAINTEXT.len());
+            
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), CIPHERTEXT);
+        }
+        
+        #[test]
+        fn test_decrypt() {
+            type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+            let cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV);
+            
+            assert!(cipher.is_ok());
+            let mut cipher = cipher.unwrap();
+            
+            let mut buffer = CIPHERTEXT.clone();
+            let result = cipher.decrypt_buffer(&mut buffer);
+            
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), PLAINTEXT);
+        }
+    }
 }
 
