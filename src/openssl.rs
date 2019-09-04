@@ -115,7 +115,7 @@ pub mod aes {
         ];
 
         #[test]
-        fn key_test() {
+        fn test_key() {
             let encrypt_key = AES_KEY::new_encrypt_key(&RAW_KEY);
             assert!(encrypt_key.is_ok());
             
@@ -136,7 +136,7 @@ pub mod aes {
         }
     
         #[test]
-        fn encrypt_test() {
+        fn test_encrypt() {
             let key = AES_KEY::new_encrypt_key(&RAW_KEY).unwrap();
             let mut block = PLAINTEXT.clone();
             encrypt_block(&mut block, &key);
@@ -144,7 +144,7 @@ pub mod aes {
         }
     
         #[test]
-        fn decrypt_test() {
+        fn test_decrypt() {
             let key = AES_KEY::new_decrypt_key(&RAW_KEY).unwrap();
             let mut block = CIPHERTEXT.clone();
             decrypt_block(&mut block, &key);

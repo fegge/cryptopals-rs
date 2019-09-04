@@ -92,14 +92,14 @@ pub mod ciphers {
         ];
 
         #[test]
-        fn key_test() {
+        fn test_key() {
             assert!(Aes128::new(&[0; Aes128::KEY_SIZE]).is_ok());
             assert!(Aes128::new(&[0; Aes128::KEY_SIZE + 1]).is_err());
         }
 
 
         #[test]
-        fn encrypt_test() {
+        fn test_encrypt() {
             let aes = Aes128::new(&RAW_KEY).unwrap();
 
             let mut block = PLAINTEXT.clone();
@@ -109,7 +109,7 @@ pub mod ciphers {
         }
     
         #[test]
-        fn decrypt_test() {
+        fn test_decrypt() {
             let aes = Aes128::new(&RAW_KEY).unwrap();
 
             let mut block = CIPHERTEXT.clone();
@@ -173,7 +173,7 @@ pub mod padding_modes {
         use super::{PaddingMode, Pkcs7};
         
         #[test]
-        fn length_test() {
+        fn test_length() {
             let pkcs7 = Pkcs7::new(8);
             let mut buffer: [u8; 8] = [4, 5, 6, 7, 0, 0, 0, 0];
 
@@ -193,7 +193,7 @@ pub mod padding_modes {
         }
 
         #[test]
-        fn invalid_test() {
+        fn test_invalid() {
             let pkcs7 = Pkcs7::new(8);
             let mut buffer: [u8; 4] = [4, 5, 6, 7];
             
@@ -202,7 +202,7 @@ pub mod padding_modes {
         }
 
         #[test]
-        fn value_test() {
+        fn test_value() {
             let pkcs7 = Pkcs7::new(20);
             let mut buffer: Vec<u8> = Vec::with_capacity(20);
             buffer.extend("YELLOW SUBMARINE".as_bytes());
