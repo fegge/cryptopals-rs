@@ -231,10 +231,10 @@ pub mod padding_modes {
         }
         
         fn pad_buffer<'a>(&self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
-            let padding_size = buffer.len() - size;
-            if padding_size <= 0 || padding_size >= 255 {
+            if buffer.len() <= size || buffer.len() > size + 255 {
                 return Err(Error::PaddingError);
             }
+            let padding_size = buffer.len() - size;
             Pkcs7::set_bytes(&mut buffer[size..], padding_size as u8);
             Ok(buffer)
         }
@@ -309,11 +309,40 @@ pub mod cipher_modes {
     pub type Iv = [u8];
 
     pub trait CipherMode<C: Cipher, P: PaddingMode>: Sized {
-        fn new(key: &Key, iv: &Iv) -> Result<Self, Error>; 
-        
         fn encrypt_buffer<'a>(&mut self, buffer: &'a mut [u8], end: usize) -> Result<&'a [u8], Error>;
 
         fn decrypt_buffer<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
+    }
+
+    pub struct Ecb<C: Cipher, P: PaddingMode> {
+        cipher: C,
+        padding: P
+    }
+
+    impl<C: Cipher, P: PaddingMode> Ecb<C, P> {
+        pub fn new(key: &Key) -> Result<Self, Error> {
+            Ok(Self { 
+                cipher: C::new(&key)?, 
+                padding: P::new(C::BLOCK_SIZE)
+            })
+        }
+    }
+
+    impl<C: Cipher, P: PaddingMode> CipherMode<C, P> for Ecb<C, P> {
+        fn encrypt_buffer<'a>(&mut self, mut buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
+            self.padding.pad_buffer(&mut buffer, size)?;
+            for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
+                self.cipher.encrypt_block(&mut block)?;
+            }
+            Ok(buffer)
+        }
+
+        fn decrypt_buffer<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
+            for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
+                self.cipher.decrypt_block(&mut block)?;
+            }
+            self.padding.unpad_buffer(buffer)
+        }
     }
 
     pub struct Cbc<C: Cipher, P: PaddingMode> {
@@ -323,16 +352,7 @@ pub mod cipher_modes {
     }
 
     impl<C: Cipher, P: PaddingMode> Cbc<C, P> {
-        fn xor_blocks<'a>(lhs: &'a mut [u8], rhs: &[u8]) -> &'a [u8] {
-            lhs.iter_mut().zip(rhs).for_each(|(x, y)| {
-                *x ^= y;
-            });
-            lhs
-        }
-    }
-
-    impl<C: Cipher, P: PaddingMode> CipherMode<C, P> for Cbc<C, P> {
-        fn new(key: &Key, iv: &Iv) -> Result<Self, Error> {
+        pub fn new(key: &Key, iv: &Iv) -> Result<Self, Error> {
             if iv.len() != C::BLOCK_SIZE {
                 return Err(Error::CipherError)
             }
@@ -343,6 +363,15 @@ pub mod cipher_modes {
             })
         }
         
+        fn xor_blocks<'a>(lhs: &'a mut [u8], rhs: &[u8]) -> &'a [u8] {
+            lhs.iter_mut().zip(rhs).for_each(|(x, y)| {
+                *x ^= y;
+            });
+            lhs
+        }
+    }
+
+    impl<C: Cipher, P: PaddingMode> CipherMode<C, P> for Cbc<C, P> {
         fn encrypt_buffer<'a>(&mut self, mut buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
             self.padding.pad_buffer(&mut buffer, size)?;
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
@@ -374,6 +403,9 @@ pub mod cipher_modes {
         use crate::symmetric::padding_modes::Pkcs7;
         use crate::symmetric::ciphers::{Cipher, Aes128};
 
+        type Aes128Ecb = Ecb<Aes128, Pkcs7>;
+        type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+
         const RAW_KEY: [u8; Aes128::KEY_SIZE] = [
             0xc0, 0xfe, 0xfe, 0x00,
             0xc0, 0xfe, 0xfe, 0x01,
@@ -396,7 +428,18 @@ pub mod cipher_modes {
             0xc0, 0xfe, 0xfe
         ];
 
-        const CIPHERTEXT: [u8; 2 * Aes128::BLOCK_SIZE] = [
+        const ECB_CIPHERTEXT: [u8; 2 * Aes128::BLOCK_SIZE] = [
+            0xf0, 0xf7, 0x98, 0x06,
+            0xed, 0xd2, 0xed, 0x54,
+            0x9d, 0x0a, 0x8b, 0xfe,
+            0x5e, 0x56, 0xdc, 0xbd,
+            0x47, 0xf6, 0x43, 0xd1,
+            0x3c, 0xcc, 0x0a, 0xa5,
+            0xc3, 0x5b, 0x0d, 0xcf,
+            0xde, 0xfc, 0xf3, 0x8f
+        ];
+
+        const CBC_CIPHERTEXT: [u8; 2 * Aes128::BLOCK_SIZE] = [
             0x10, 0xce, 0x66, 0xaf,
             0x7a, 0x70, 0x51, 0x01,
             0x19, 0xa2, 0x27, 0x95,
@@ -408,8 +451,37 @@ pub mod cipher_modes {
         ];
 
         #[test]
-        fn test_encrypt() {
-            type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+        fn test_ecb_encrypt() {
+            let cipher = Aes128Ecb::new(&RAW_KEY);
+            
+            assert!(cipher.is_ok());
+            let mut cipher = cipher.unwrap();
+            
+            let mut buffer = Vec::with_capacity(2 * Aes128::BLOCK_SIZE);
+            buffer.extend(&PLAINTEXT);
+            buffer.resize(2 * Aes128::BLOCK_SIZE, 0);
+            let result = cipher.encrypt_buffer(&mut buffer, PLAINTEXT.len());
+            
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), ECB_CIPHERTEXT);
+        }
+        
+        #[test]
+        fn test_ecb_decrypt() {
+            let cipher = Aes128Ecb::new(&RAW_KEY);
+            
+            assert!(cipher.is_ok());
+            let mut cipher = cipher.unwrap();
+            
+            let mut buffer = ECB_CIPHERTEXT.clone();
+            let result = cipher.decrypt_buffer(&mut buffer);
+            
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), PLAINTEXT);
+        }
+        
+        #[test]
+        fn test_cbc_encrypt() {
             let cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV);
             
             assert!(cipher.is_ok());
@@ -421,18 +493,17 @@ pub mod cipher_modes {
             let result = cipher.encrypt_buffer(&mut buffer, PLAINTEXT.len());
             
             assert!(result.is_ok());
-            assert_eq!(result.unwrap(), CIPHERTEXT);
+            assert_eq!(result.unwrap(), CBC_CIPHERTEXT);
         }
         
         #[test]
-        fn test_decrypt() {
-            type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+        fn test_cbc_decrypt() {
             let cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV);
             
             assert!(cipher.is_ok());
             let mut cipher = cipher.unwrap();
             
-            let mut buffer = CIPHERTEXT.clone();
+            let mut buffer = CBC_CIPHERTEXT.clone();
             let result = cipher.decrypt_buffer(&mut buffer);
             
             assert!(result.is_ok());
