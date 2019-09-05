@@ -24,11 +24,6 @@ pub mod ciphers {
         // TODO: decrypt_block should take a block of size Self::BLOCK_SIZE.
         fn decrypt_block<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error>; 
     }
-
-    pub struct Aes128 {
-        encrypt_key: aes::AES_KEY,
-        decrypt_key: aes::AES_KEY
-    }
     
     impl From<openssl::Error> for Error {
         fn from(_: openssl::Error) -> Self {
@@ -36,8 +31,13 @@ pub mod ciphers {
         }
     }
 
+    pub struct Aes128 {
+        encrypt_key: aes::AES_KEY,
+        decrypt_key: aes::AES_KEY
+    }
+    
     impl Cipher for Aes128 {
-        const KEY_SIZE: usize = aes::AES_KEY_SIZE;
+        const KEY_SIZE: usize = 16;
         const BLOCK_SIZE: usize = aes::AES_BLOCK_SIZE;
         
         fn new(raw_key: &Key) -> Result<Self, Error> {
@@ -66,56 +66,141 @@ pub mod ciphers {
         }
     }
 
+    pub struct Aes256 {
+        encrypt_key: aes::AES_KEY,
+        decrypt_key: aes::AES_KEY
+    }
+    
+    impl Cipher for Aes256 {
+        const KEY_SIZE: usize = 32;
+        const BLOCK_SIZE: usize = aes::AES_BLOCK_SIZE;
+        
+        fn new(raw_key: &Key) -> Result<Self, Error> {
+            if raw_key.len() != Self::KEY_SIZE {
+                return Err(Error::CipherError)
+            }
+            let encrypt_key = aes::AES_KEY::new_encrypt_key(raw_key)?;
+            let decrypt_key = aes::AES_KEY::new_decrypt_key(raw_key)?;
+            
+            Ok(Aes256 {
+                encrypt_key,
+                decrypt_key
+            })
+        }
+
+        // TODO: encrypt_block should take a block of size Self::BLOCK_SIZE.
+        fn encrypt_block<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> { 
+            aes::encrypt_block(block, &self.encrypt_key);
+            Ok(block)
+        }
+
+        // TODO: decrypt_block should take a block of size Self::BLOCK_SIZE.
+        fn decrypt_block<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> {
+            aes::decrypt_block(block, &self.decrypt_key);
+            Ok(block)
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
 
-        const RAW_KEY: [u8; Aes128::KEY_SIZE] = [
+        const RAW_KEY_128: [u8; Aes128::KEY_SIZE] = [
             0xc0, 0xfe, 0xfe, 0x00,
             0xc0, 0xfe, 0xfe, 0x01,
             0xc0, 0xfe, 0xfe, 0x02,
             0xc0, 0xfe, 0xfe, 0x03,
         ];
 
-        const PLAINTEXT: [u8; Aes128::BLOCK_SIZE] = [
+        const PLAINTEXT_128: [u8; Aes128::BLOCK_SIZE] = [
             0xc0, 0xfe, 0xfe, 0x00,
             0xc0, 0xfe, 0xfe, 0x01,
             0xc0, 0xfe, 0xfe, 0x02,
             0xc0, 0xfe, 0xfe, 0x03,
         ];
 
-        const CIPHERTEXT: [u8; Aes128::BLOCK_SIZE] = [
+        const CIPHERTEXT_128: [u8; Aes128::BLOCK_SIZE] = [
             0xf0, 0xf7, 0x98, 0x06, 
             0xed, 0xd2, 0xed, 0x54, 
             0x9d, 0x0a, 0x8b, 0xfe, 
             0x5e, 0x56, 0xdc, 0xbd
         ];
 
+        const RAW_KEY_256: [u8; Aes256::KEY_SIZE] = [
+            0xc0, 0xfe, 0xfe, 0x00,
+            0xc0, 0xfe, 0xfe, 0x01,
+            0xc0, 0xfe, 0xfe, 0x02,
+            0xc0, 0xfe, 0xfe, 0x03,
+            0xc0, 0xfe, 0xfe, 0x04,
+            0xc0, 0xfe, 0xfe, 0x05,
+            0xc0, 0xfe, 0xfe, 0x06,
+            0xc0, 0xfe, 0xfe, 0x07,
+        ];
+        
+        const PLAINTEXT_256: [u8; Aes256::BLOCK_SIZE] = [
+            0xc0, 0xfe, 0xfe, 0x00,
+            0xc0, 0xfe, 0xfe, 0x01,
+            0xc0, 0xfe, 0xfe, 0x02,
+            0xc0, 0xfe, 0xfe, 0x03,
+        ];
+
+        const CIPHERTEXT_256: [u8; Aes256::BLOCK_SIZE] = [
+            0xbd, 0xe3, 0x5d, 0x23,
+            0x5d, 0x45, 0x12, 0xcb,
+            0x58, 0x31, 0xdc, 0x7a,
+            0x81, 0xbf, 0x57, 0x2d
+        ];
+
         #[test]
-        fn test_key() {
+        fn test_key_128() {
             assert!(Aes128::new(&[0; Aes128::KEY_SIZE]).is_ok());
             assert!(Aes128::new(&[0; Aes128::KEY_SIZE + 1]).is_err());
         }
 
-
         #[test]
-        fn test_encrypt() {
-            let aes = Aes128::new(&RAW_KEY).unwrap();
+        fn test_encrypt_128() {
+            let aes = Aes128::new(&RAW_KEY_128).unwrap();
 
-            let mut block = PLAINTEXT.clone();
+            let mut block = PLAINTEXT_128.clone();
             assert!(aes.encrypt_block(&mut block).is_ok());
 
-            assert_eq!(block, CIPHERTEXT);
+            assert_eq!(block, CIPHERTEXT_128);
         }
     
         #[test]
-        fn test_decrypt() {
-            let aes = Aes128::new(&RAW_KEY).unwrap();
+        fn test_decrypt_128() {
+            let aes = Aes128::new(&RAW_KEY_128).unwrap();
 
-            let mut block = CIPHERTEXT.clone();
+            let mut block = CIPHERTEXT_128.clone();
             assert!(aes.decrypt_block(&mut block).is_ok());
 
-            assert_eq!(block, PLAINTEXT);
+            assert_eq!(block, PLAINTEXT_128);
+        }
+        
+        #[test]
+        fn test_key_256() {
+            assert!(Aes256::new(&[0; Aes256::KEY_SIZE]).is_ok());
+            assert!(Aes256::new(&[0; Aes256::KEY_SIZE + 1]).is_err());
+        }
+
+        #[test]
+        fn test_encrypt_256() {
+            let aes = Aes256::new(&RAW_KEY_256).unwrap();
+
+            let mut block = PLAINTEXT_256.clone();
+            assert!(aes.encrypt_block(&mut block).is_ok());
+
+            assert_eq!(block, CIPHERTEXT_256);
+        }
+    
+        #[test]
+        fn test_decrypt_256() {
+            let aes = Aes256::new(&RAW_KEY_256).unwrap();
+
+            let mut block = CIPHERTEXT_256.clone();
+            assert!(aes.decrypt_block(&mut block).is_ok());
+
+            assert_eq!(block, PLAINTEXT_256);
         }
     }
 }
