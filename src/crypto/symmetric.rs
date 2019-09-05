@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     PaddingError,
     CipherError,
@@ -7,8 +7,8 @@ pub enum Error {
 
 pub mod ciphers {
     use super::Error;
-    use crate::openssl;
-    use crate::openssl::aes;
+    use crate::crypto::openssl;
+    use crate::crypto::openssl::aes;
 
     pub type Key = [u8];
 
@@ -152,13 +152,13 @@ pub mod ciphers {
         ];
 
         #[test]
-        fn test_key_128() {
+        fn key_aes_128() {
             assert!(Aes128::new(&[0; Aes128::KEY_SIZE]).is_ok());
             assert!(Aes128::new(&[0; Aes128::KEY_SIZE + 1]).is_err());
         }
 
         #[test]
-        fn test_encrypt_128() {
+        fn encrypt_aes_128() {
             let aes = Aes128::new(&RAW_KEY_128).unwrap();
 
             let mut block = PLAINTEXT_128.clone();
@@ -168,7 +168,7 @@ pub mod ciphers {
         }
     
         #[test]
-        fn test_decrypt_128() {
+        fn decrypt_aes_128() {
             let aes = Aes128::new(&RAW_KEY_128).unwrap();
 
             let mut block = CIPHERTEXT_128.clone();
@@ -178,13 +178,13 @@ pub mod ciphers {
         }
         
         #[test]
-        fn test_key_256() {
+        fn key_aes_256() {
             assert!(Aes256::new(&[0; Aes256::KEY_SIZE]).is_ok());
             assert!(Aes256::new(&[0; Aes256::KEY_SIZE + 1]).is_err());
         }
 
         #[test]
-        fn test_encrypt_256() {
+        fn encrypt_aes_256() {
             let aes = Aes256::new(&RAW_KEY_256).unwrap();
 
             let mut block = PLAINTEXT_256.clone();
@@ -194,7 +194,7 @@ pub mod ciphers {
         }
     
         #[test]
-        fn test_decrypt_256() {
+        fn decrypt_aes_256() {
             let aes = Aes256::new(&RAW_KEY_256).unwrap();
 
             let mut block = CIPHERTEXT_256.clone();
@@ -254,11 +254,11 @@ pub mod padding_modes {
 
     #[cfg(test)]
     mod tests {
-        use crate::symmetric::Error;
+        use crate::crypto::symmetric::Error;
         use super::{PaddingMode, Pkcs7};
         
         #[test]
-        fn test_length() {
+        fn valid_padding() {
             let pkcs7 = Pkcs7::new(8);
             let mut buffer: [u8; 8] = [4, 5, 6, 7, 0, 0, 0, 0];
 
@@ -278,7 +278,7 @@ pub mod padding_modes {
         }
 
         #[test]
-        fn test_invalid() {
+        fn invalid_padding() {
             let pkcs7 = Pkcs7::new(8);
             let mut buffer: [u8; 4] = [4, 5, 6, 7];
             
@@ -287,7 +287,7 @@ pub mod padding_modes {
         }
 
         #[test]
-        fn test_value() {
+        fn known_output() {
             let pkcs7 = Pkcs7::new(20);
             let mut buffer: Vec<u8> = Vec::with_capacity(20);
             buffer.extend("YELLOW SUBMARINE".as_bytes());
@@ -400,8 +400,8 @@ pub mod cipher_modes {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::symmetric::padding_modes::Pkcs7;
-        use crate::symmetric::ciphers::{Cipher, Aes128};
+        use crate::crypto::symmetric::padding_modes::Pkcs7;
+        use crate::crypto::symmetric::ciphers::{Cipher, Aes128};
 
         type Aes128Ecb = Ecb<Aes128, Pkcs7>;
         type Aes128Cbc = Cbc<Aes128, Pkcs7>;
@@ -451,7 +451,7 @@ pub mod cipher_modes {
         ];
 
         #[test]
-        fn test_ecb_encrypt() {
+        fn encrypt_ecb_mode() {
             let cipher = Aes128Ecb::new(&RAW_KEY);
             
             assert!(cipher.is_ok());
@@ -467,7 +467,7 @@ pub mod cipher_modes {
         }
         
         #[test]
-        fn test_ecb_decrypt() {
+        fn decrypt_ecb_mode() {
             let cipher = Aes128Ecb::new(&RAW_KEY);
             
             assert!(cipher.is_ok());
@@ -481,7 +481,7 @@ pub mod cipher_modes {
         }
         
         #[test]
-        fn test_cbc_encrypt() {
+        fn encrypt_cbc_mode() {
             let cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV);
             
             assert!(cipher.is_ok());
@@ -497,7 +497,7 @@ pub mod cipher_modes {
         }
         
         #[test]
-        fn test_cbc_decrypt() {
+        fn decrypt_cbc_mode() {
             let cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV);
             
             assert!(cipher.is_ok());

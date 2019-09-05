@@ -70,7 +70,7 @@ mod tests {
     use super::Mt19337;
 
     #[test]
-    fn test_output() {
+    fn known_output() {
         let mut random = Mt19337::new(1);
         let output = [
             0x6ac1f425, 0xff4780eb, 0xb8672f8c, 0xeebc1448, 

@@ -1,3 +1,1 @@
-mod openssl;
-pub mod random;
-pub mod symmetric;
+pub mod crypto;
