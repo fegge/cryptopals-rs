@@ -345,7 +345,6 @@ pub mod cipher_modes {
             let mut output_buffer = Vec::with_capacity(input_buffer.len() + padding_size);
             output_buffer.extend_from_slice(input_buffer);
             output_buffer.resize(input_buffer.len() + padding_size, 0);
-            
             self.encrypt_inplace(&mut output_buffer, input_buffer.len())?;
             Ok(output_buffer)
         }
@@ -526,10 +525,10 @@ pub mod cipher_modes {
             assert!(result.is_ok());
             assert_eq!(buffer[..result.unwrap()], PLAINTEXT);
             
-            // let mut buffer = ECB_CIPHERTEXT.to_owned();
-            // let result = cipher.encrypt_buffer(&mut buffer);
-            // assert!(result.is_ok());
-            // assert_eq!(&result.unwrap(), &PLAINTEXT);
+            let mut buffer = ECB_CIPHERTEXT.to_owned();
+            let result = cipher.decrypt_buffer(&mut buffer);
+            assert!(result.is_ok());
+            assert_eq!(&result.unwrap(), &PLAINTEXT);
         }
         
         #[test]
@@ -546,10 +545,12 @@ pub mod cipher_modes {
             assert!(result.is_ok());
             assert_eq!(result.unwrap(), CBC_CIPHERTEXT);
 
-            // let buffer = PLAINTEXT.to_owned();
-            // let result = cipher.encrypt_buffer(&buffer);
-            // assert!(result.is_ok());
-            // assert_eq!(&result.unwrap(), &CBC_CIPHERTEXT);
+            let mut cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV).unwrap();
+            
+            let buffer = PLAINTEXT.to_owned();
+            let result = cipher.encrypt_buffer(&buffer);
+            assert!(result.is_ok());
+            assert_eq!(&result.unwrap(), &CBC_CIPHERTEXT);
         }
         
         #[test]
@@ -564,10 +565,12 @@ pub mod cipher_modes {
             assert!(result.is_ok());
             assert_eq!(buffer[..result.unwrap()], PLAINTEXT);
             
-            // let mut buffer = CBC_CIPHERTEXT.to_owned();
-            // let result = cipher.encrypt_buffer(&mut buffer);
-            // assert!(result.is_ok());
-            // assert_eq!(&result.unwrap(), &PLAINTEXT);
+            let mut cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV).unwrap();
+            
+            let mut buffer = CBC_CIPHERTEXT.to_owned();
+            let result = cipher.decrypt_buffer(&mut buffer);
+            assert!(result.is_ok());
+            assert_eq!(&result.unwrap(), &PLAINTEXT);
         }
     }
 }
