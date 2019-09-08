@@ -5,7 +5,7 @@ challenges in Rust. Implementations of crypto primitives and attacks are found
 under *src*. Complete solutions are implemented as integration tests under
 *tests*. The solutions can be verified by running
 
-```
-    cargo test set
+```bash
+    cargo test solution
 ```
 

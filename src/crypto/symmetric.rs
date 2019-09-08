@@ -211,13 +211,34 @@ pub mod padding_modes {
 
     pub trait PaddingMode {
         fn new(block_size: usize) -> Self;
-
-        fn pad_buffer<'a>(&self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error>;
         
-        fn unpad_buffer<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
+        fn min_padding_size(block_size: usize, buffer_size: usize) -> usize {
+            block_size - (buffer_size % block_size)
+        }
+
+        fn block_size(&self) -> usize;
+
+        fn pad_inplace<'a>(&self, buffer: &'a mut [u8], end: usize) -> Result<&'a [u8], Error>;
+        
+        fn unpad_inplace(&self, buffer: &[u8]) -> Result<usize, Error>;
+
+        fn pad_buffer<'a>(&self, buffer: &'a mut Vec<u8>) -> Result<&'a Vec<u8>, Error> {
+            let buffer_size = buffer.len();
+            buffer.resize(buffer_size + Self::min_padding_size(self.block_size(), buffer_size), 0);
+            self.pad_inplace(buffer, buffer_size)?;
+            Ok(buffer)
+        }
+        
+        fn unpad_buffer<'a>(&self, buffer: &'a mut Vec<u8>) -> Result<&'a Vec<u8>, Error> {
+            let buffer_size = self.unpad_inplace(buffer)?;
+            buffer.truncate(buffer_size);
+            Ok(buffer)
+        }
     }
 
-    pub struct Pkcs7 {}
+    pub struct Pkcs7 {
+        block_size: usize
+    }
 
     impl Pkcs7 {
         fn set_bytes(buffer: &mut [u8], value: u8) {
@@ -226,11 +247,13 @@ pub mod padding_modes {
     }
 
     impl PaddingMode for Pkcs7 {
-        fn new(_: usize) -> Self {
-            Self {}
+        fn new(block_size: usize) -> Self {
+            Self { block_size }
         }
+
+        fn block_size(&self) -> usize { self.block_size }
         
-        fn pad_buffer<'a>(&self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
+        fn pad_inplace<'a>(&self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
             if buffer.len() <= size || buffer.len() > size + 255 {
                 return Err(Error::PaddingError);
             }
@@ -239,14 +262,13 @@ pub mod padding_modes {
             Ok(buffer)
         }
 
-        fn unpad_buffer<'a>(&self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
+        fn unpad_inplace(&self, buffer: &[u8]) -> Result<usize, Error> {
             if let Some(&last_byte) = buffer.last() {
                 let padding_size = last_byte as usize;
                 if padding_size > buffer.len() {
                     return Err(Error::PaddingError);
                 }
-                let buffer: &'a [u8] = &buffer[..(buffer.len() - padding_size)];
-                return Ok(buffer);
+                return Ok(buffer.len() - padding_size);
             }
             Err(Error::PaddingError)
         }
@@ -254,27 +276,41 @@ pub mod padding_modes {
 
     #[cfg(test)]
     mod tests {
-        use crate::crypto::symmetric::Error;
         use super::{PaddingMode, Pkcs7};
-        
+       
+        #[test]
+        fn padding_size() {
+            assert_eq!(Pkcs7::min_padding_size(8, 5), 3);
+            assert_eq!(Pkcs7::min_padding_size(8, 8), 8);
+        }
+
         #[test]
         fn valid_padding() {
             let pkcs7 = Pkcs7::new(8);
-            let mut buffer: [u8; 8] = [4, 5, 6, 7, 0, 0, 0, 0];
 
-            let result = pkcs7.pad_buffer(&mut buffer, 4);
+            let mut buffer: [u8; 8] = [4, 5, 6, 7, 8, 0, 0, 0];
+            let result = pkcs7.pad_inplace(&mut buffer, 5);
             assert!(result.is_ok());
-            assert_eq!(buffer[4..], [4; 4]);
+            assert_eq!(buffer[5..], [3; 3]);
 
-            let result = pkcs7.unpad_buffer(&mut buffer);
+            let result = pkcs7.unpad_inplace(&buffer);
             assert!(result.is_ok());
-            assert_eq!(result.unwrap(), [4, 5, 6, 7]);
+            assert_eq!(result.unwrap(), 5);
 
             let mut buffer = [0; 8];
-
-            let result = pkcs7.pad_buffer(&mut buffer, 0);
+            let result = pkcs7.pad_inplace(&mut buffer, 0);
             assert!(result.is_ok());
             assert_eq!(buffer, [8; 8]);
+
+            let mut buffer = vec![4, 5, 6, 7, 8];
+            let result = pkcs7.pad_buffer(&mut buffer);
+            assert!(result.is_ok());
+            assert_eq!(buffer[5..], [3; 3]);
+            
+            let result = pkcs7.unpad_buffer(&mut buffer);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), &vec![4u8, 5u8, 6u8, 7u8, 8u8]);
+            assert_eq!(buffer, vec![4, 5, 6, 7, 8]);
         }
 
         #[test]
@@ -282,8 +318,11 @@ pub mod padding_modes {
             let pkcs7 = Pkcs7::new(8);
             let mut buffer: [u8; 4] = [4, 5, 6, 7];
             
-            let result = pkcs7.unpad_buffer(&mut buffer);
-            assert_eq!(result, Err(Error::PaddingError));
+            let result = pkcs7.pad_inplace(&mut buffer, 4);
+            assert!(result.is_err());
+
+            let result = pkcs7.unpad_inplace(&mut buffer);
+            assert!(result.is_err());
         }
     }
 }
@@ -297,9 +336,26 @@ pub mod cipher_modes {
     pub type Iv = [u8];
 
     pub trait CipherMode<C: Cipher, P: PaddingMode>: Sized {
-        fn encrypt_buffer<'a>(&mut self, buffer: &'a mut [u8], end: usize) -> Result<&'a [u8], Error>;
+        fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8], end: usize) -> Result<&'a [u8], Error>;
 
-        fn decrypt_buffer<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
+        fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error>;
+        
+        fn encrypt_buffer(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
+            let padding_size = P::min_padding_size(C::BLOCK_SIZE, input_buffer.len());
+            let mut output_buffer = Vec::with_capacity(input_buffer.len() + padding_size);
+            output_buffer.extend_from_slice(input_buffer);
+            output_buffer.resize(input_buffer.len() + padding_size, 0);
+            
+            self.encrypt_inplace(&mut output_buffer, input_buffer.len())?;
+            Ok(output_buffer)
+        }
+
+        fn decrypt_buffer(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
+            let mut output_buffer = input_buffer.to_vec();
+            let output_size = self.decrypt_inplace(&mut output_buffer)?;
+            output_buffer.truncate(output_size);
+            Ok(output_buffer)
+        }
     }
 
     pub struct Ecb<C: Cipher, P: PaddingMode> {
@@ -317,19 +373,19 @@ pub mod cipher_modes {
     }
 
     impl<C: Cipher, P: PaddingMode> CipherMode<C, P> for Ecb<C, P> {
-        fn encrypt_buffer<'a>(&mut self, mut buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
-            self.padding.pad_buffer(&mut buffer, size)?;
+        fn encrypt_inplace<'a>(&mut self, mut buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
+            self.padding.pad_inplace(&mut buffer, size)?;
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
                 self.cipher.encrypt_block(&mut block)?;
             }
             Ok(buffer)
         }
 
-        fn decrypt_buffer<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
+        fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error> {
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
                 self.cipher.decrypt_block(&mut block)?;
             }
-            self.padding.unpad_buffer(buffer)
+            self.padding.unpad_inplace(buffer)
         }
     }
 
@@ -360,8 +416,8 @@ pub mod cipher_modes {
     }
 
     impl<C: Cipher, P: PaddingMode> CipherMode<C, P> for Cbc<C, P> {
-        fn encrypt_buffer<'a>(&mut self, mut buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
-            self.padding.pad_buffer(&mut buffer, size)?;
+        fn encrypt_inplace<'a>(&mut self, mut buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
+            self.padding.pad_inplace(&mut buffer, size)?;
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
                 Self::xor_blocks(&mut block, &self.iv);
                 self.cipher.encrypt_block(&mut block)?;
@@ -370,7 +426,7 @@ pub mod cipher_modes {
             Ok(buffer)
         }
 
-        fn decrypt_buffer<'a>(&mut self, mut buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
+        fn decrypt_inplace<'a>(&mut self, mut buffer: &'a mut [u8]) -> Result<usize, Error> {
             for mut block in (&mut buffer).chunks_mut(C::BLOCK_SIZE) {
                 let next_iv = block.to_owned();
                 match self.cipher.decrypt_block(&mut block) {
@@ -381,7 +437,7 @@ pub mod cipher_modes {
                     Err(error) => { return Err(error) }
                 }
             }
-            self.padding.unpad_buffer(buffer)
+            self.padding.unpad_inplace(buffer)
         }
     }
 
@@ -448,10 +504,14 @@ pub mod cipher_modes {
             let mut buffer = Vec::with_capacity(2 * Aes128::BLOCK_SIZE);
             buffer.extend(&PLAINTEXT);
             buffer.resize(2 * Aes128::BLOCK_SIZE, 0);
-            let result = cipher.encrypt_buffer(&mut buffer, PLAINTEXT.len());
-            
+            let result = cipher.encrypt_inplace(&mut buffer, PLAINTEXT.len());
             assert!(result.is_ok());
             assert_eq!(result.unwrap(), ECB_CIPHERTEXT);
+
+            let mut buffer = PLAINTEXT.to_owned();
+            let result = cipher.encrypt_buffer(&mut buffer);
+            assert!(result.is_ok());
+            assert_eq!(&result.unwrap(), &ECB_CIPHERTEXT);
         }
         
         #[test]
@@ -462,10 +522,14 @@ pub mod cipher_modes {
             let mut cipher = cipher.unwrap();
             
             let mut buffer = ECB_CIPHERTEXT.clone();
-            let result = cipher.decrypt_buffer(&mut buffer);
-            
+            let result = cipher.decrypt_inplace(&mut buffer);
             assert!(result.is_ok());
-            assert_eq!(result.unwrap(), PLAINTEXT);
+            assert_eq!(buffer[..result.unwrap()], PLAINTEXT);
+            
+            // let mut buffer = ECB_CIPHERTEXT.to_owned();
+            // let result = cipher.encrypt_buffer(&mut buffer);
+            // assert!(result.is_ok());
+            // assert_eq!(&result.unwrap(), &PLAINTEXT);
         }
         
         #[test]
@@ -478,10 +542,14 @@ pub mod cipher_modes {
             let mut buffer = Vec::with_capacity(2 * Aes128::BLOCK_SIZE);
             buffer.extend(&PLAINTEXT);
             buffer.resize(2 * Aes128::BLOCK_SIZE, 0);
-            let result = cipher.encrypt_buffer(&mut buffer, PLAINTEXT.len());
-            
+            let result = cipher.encrypt_inplace(&mut buffer, PLAINTEXT.len());
             assert!(result.is_ok());
             assert_eq!(result.unwrap(), CBC_CIPHERTEXT);
+
+            // let buffer = PLAINTEXT.to_owned();
+            // let result = cipher.encrypt_buffer(&buffer);
+            // assert!(result.is_ok());
+            // assert_eq!(&result.unwrap(), &CBC_CIPHERTEXT);
         }
         
         #[test]
@@ -492,10 +560,14 @@ pub mod cipher_modes {
             let mut cipher = cipher.unwrap();
             
             let mut buffer = CBC_CIPHERTEXT.clone();
-            let result = cipher.decrypt_buffer(&mut buffer);
-            
+            let result = cipher.decrypt_inplace(&mut buffer);
             assert!(result.is_ok());
-            assert_eq!(result.unwrap(), PLAINTEXT);
+            assert_eq!(buffer[..result.unwrap()], PLAINTEXT);
+            
+            // let mut buffer = CBC_CIPHERTEXT.to_owned();
+            // let result = cipher.encrypt_buffer(&mut buffer);
+            // assert!(result.is_ok());
+            // assert_eq!(&result.unwrap(), &PLAINTEXT);
         }
     }
 }
