@@ -45,30 +45,17 @@ mod set_2 {
     }
 
     mod problem_11 {
-        use cryptopals::crypto::symmetric::ciphers::{Cipher, Aes128};
-        use cryptopals::oracles::symmetric::ecb_cbc_detection::{Mode, Oracle};
+        use cryptopals::{oracles, attacks};
+        use oracles::symmetric::ecb_cbc_detection::Oracle;
+        use attacks::symmetric::ecb_cbc_detection::get_cipher_mode;
 
         #[test]
         fn solution() {
             let mut oracle: Oracle = Default::default(); 
-            let known_data = [0; 3 * Aes128::BLOCK_SIZE];
             for _ in 0..100 {
-                let result = oracle.encrypt_buffer(&known_data);
+                let result = get_cipher_mode(|buffer| { oracle.encrypt_buffer(buffer) }); 
                 assert!(result.is_ok());
-
-                let mut cipher_mode = Mode::CbcMode;
-                let mut last_block = None;
-                // By encrypting mutiple identical blocks, we can detect ECB mode
-                // since the corresponding ciphertext blocks will also be identical.
-                for this_block in result.unwrap().chunks(Aes128::BLOCK_SIZE) {
-                    if last_block.is_some() && last_block.unwrap() == this_block {
-                        cipher_mode = Mode::EcbMode;
-                        break;
-                    } else {
-                        last_block = Some(this_block);
-                    }
-                }
-                assert_eq!(cipher_mode, oracle.cipher_mode().unwrap()); 
+                assert_eq!(result.unwrap(), oracle.cipher_mode().unwrap()); 
             }
         }
     }

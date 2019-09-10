@@ -14,8 +14,8 @@ pub mod ecb_cbc_detection {
 
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum Mode {
-        EcbMode,
-        CbcMode
+        Ecb,
+        Cbc
     }
 
     pub struct Oracle { 
@@ -72,11 +72,11 @@ pub mod ecb_cbc_detection {
             if Self::flip_coin() {
                 let mut cipher_mode = Self::get_ecb_mode()?;
                 cipher_mode.encrypt_inplace(&mut output_buffer, output_size)?;
-                self.cipher_mode = Some(Mode::EcbMode);
+                self.cipher_mode = Some(Mode::Ecb);
             } else {
                 let mut cipher_mode = Self::get_cbc_mode()?;
                 cipher_mode.encrypt_inplace(&mut output_buffer, output_size)?;
-                self.cipher_mode = Some(Mode::CbcMode);
+                self.cipher_mode = Some(Mode::Cbc);
             }
             Ok(output_buffer)
         }
