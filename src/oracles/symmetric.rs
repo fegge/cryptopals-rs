@@ -90,3 +90,56 @@ pub mod ecb_cbc_detection {
         }
     }
 }
+
+
+pub mod simple_ecb_decryption {
+    use rand;
+
+    use crate::crypto::symmetric;
+
+    use symmetric::padding_modes::{PaddingMode, Pkcs7};
+    use symmetric::cipher_modes::{CipherMode, Ecb};
+    use symmetric::ciphers::{Cipher, Aes128};
+    use symmetric::Error;
+
+    type Aes128Ecb = Ecb<Aes128, Pkcs7>;
+
+    pub struct Oracle {
+        cipher: Aes128Ecb,
+        pub unknown_data: Vec<u8>
+    }
+
+    impl Oracle {
+        pub fn new() -> Result<Self, Error> {
+            let key: Vec<u8> = (0..Aes128::KEY_SIZE).map(|_| { rand::random() }).collect();
+            let cipher = Aes128Ecb::new(&key)?;
+            
+            let unknown_data = include_str!("../../data/set_2/problem_12.txt").replace("\n", "");
+            let unknown_data = base64::decode(&unknown_data).unwrap().to_owned();
+            
+            Ok(Oracle { cipher, unknown_data })
+        }
+        
+        fn build_plaintext(&self, known_data: &[u8]) -> Vec<u8> {
+            // Ensure there is enough space for the random prefix, random suffix and PKCS7 padding.
+            let maximum_size = self.unknown_data.len() + known_data.len() + Aes128::BLOCK_SIZE;
+            let mut plaintext = Vec::with_capacity(maximum_size);
+
+            plaintext.extend(known_data);
+            plaintext.extend(&self.unknown_data);
+
+            plaintext
+        }
+
+        pub fn encrypt_buffer(&mut self, buffer: &[u8]) -> Result<Vec<u8>, Error> {
+            let mut output_buffer = self.build_plaintext(&buffer);
+            let output_size = output_buffer.len();
+            let padding_size = Pkcs7::min_padding_size(Aes128::BLOCK_SIZE, output_size);
+            output_buffer.resize(output_size + padding_size, 0);
+            self.cipher.encrypt_inplace(&mut output_buffer, output_size)?;
+
+            Ok(output_buffer)
+        }
+    }
+
+}

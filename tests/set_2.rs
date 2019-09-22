@@ -17,6 +17,7 @@ mod set_2 {
     }
 
     mod problem_10 {
+        use base64;
         use cryptopals::crypto;
         
         use crypto::symmetric::padding_modes::Pkcs7;
@@ -31,7 +32,9 @@ mod set_2 {
            let iv = [0; Aes128::BLOCK_SIZE];
            let mut cipher = Aes128Cbc::new(key, &iv).unwrap();
 
-           let buffer = include_bytes!("../data/set_2/problem_10.bin").to_owned();
+           let buffer = include_str!("../data/set_2/problem_10.txt").replace("\n", "");
+           let buffer = base64::decode(&buffer).unwrap().to_owned();
+
            let result = cipher.decrypt_buffer(&buffer);
            assert!(result.is_ok()); 
             
@@ -53,9 +56,28 @@ mod set_2 {
         fn solution() {
             let mut oracle: Oracle = Default::default(); 
             for _ in 0..100 {
-                let result = get_cipher_mode(|buffer| { oracle.encrypt_buffer(buffer) }); 
+                let result = get_cipher_mode(|buffer| oracle.encrypt_buffer(buffer)); 
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), oracle.cipher_mode().unwrap()); 
+            }
+        }
+    }
+
+    mod problem_12 {
+        use cryptopals::{oracles, attacks};
+        use oracles::symmetric::simple_ecb_decryption::Oracle;
+        use attacks::symmetric::simple_ecb_decryption::get_unknown_data;
+
+        #[test]
+        fn solution() {
+            let mut oracle: Oracle = Oracle::new().unwrap();
+            let unknown_size = oracle.unknown_data.len();
+            for _ in 0..1 {
+                let result = get_unknown_data(unknown_size,
+                    |buffer| { oracle.encrypt_buffer(buffer) }
+                ); 
+                assert!(result.is_ok());
+                assert_eq!(result.unwrap(), oracle.unknown_data); 
             }
         }
     }
