@@ -1,4 +1,4 @@
-mod set_2 {
+mod set_3 {
 
     mod problem_22 {
         use rand;
