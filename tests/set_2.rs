@@ -71,14 +71,11 @@ mod set_2 {
         #[test]
         fn solution() {
             let mut oracle: Oracle = Oracle::new().unwrap();
-            let unknown_size = oracle.unknown_data.len();
-            for _ in 0..1 {
-                let result = get_unknown_data(unknown_size,
-                    |buffer| { oracle.encrypt_buffer(buffer) }
-                ); 
-                assert!(result.is_ok());
-                assert_eq!(result.unwrap(), oracle.unknown_data); 
-            }
+            let result = get_unknown_data(
+                |buffer| { oracle.encrypt_buffer(buffer) }
+            ); 
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), oracle.unknown_data); 
         }
     }
 }

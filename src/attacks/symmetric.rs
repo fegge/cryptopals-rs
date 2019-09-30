@@ -54,14 +54,13 @@ pub mod simple_ecb_decryption {
         Err(Error::CipherError)
     }
 
-    pub fn get_unknown_data<Oracle>(unknown_size: usize, mut encrypt_buffer: Oracle) -> Result<Vec<u8>, Error> 
+    pub fn get_unknown_data<Oracle>(mut encrypt_buffer: Oracle) -> Result<Vec<u8>, Error> 
         where Oracle: FnMut(&[u8]) -> Result<Vec<u8>, Error> 
     {
-        println!("{:?}", get_block_size(|buffer| encrypt_buffer(buffer)));
         let block_size = get_block_size(|buffer| encrypt_buffer(buffer))?;
         
         let mut unknown_data = Vec::new();
-        while unknown_data.len() < unknown_size {
+        loop {
             let mut known_data = get_known_data(unknown_data.len(), block_size);
             let target_data = encrypt_buffer(&known_data)?;
             
@@ -77,6 +76,7 @@ pub mod simple_ecb_decryption {
                     // Note that this is not an error state. This will in fact
                     // happen when we are trying to recover the padding bytes
                     // since these change depending on the size of the message.
+                    unknown_data.pop();
                     return Ok(unknown_data);
                 }
                 last_byte += 1;
@@ -85,6 +85,5 @@ pub mod simple_ecb_decryption {
             }
             unknown_data.push(last_byte);
         }
-        Ok(unknown_data)
     }
 }
