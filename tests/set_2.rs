@@ -78,4 +78,26 @@ mod set_2 {
             assert_eq!(result.unwrap(), oracle.unknown_data); 
         }
     }
+
+    mod problem_13 {
+        use maplit::{convert_args, hashmap};
+
+        use std::collections::HashMap;
+
+        use cryptopals::http;
+        use http::request::{FromParamStr, ToParamStr};
+        
+        #[test]
+        fn solution() {
+            let profile: HashMap<String, String> = convert_args!(hashmap!(
+                "email" => "foo@bar.com",
+                "uid" => "10",
+                "role" => "user",
+            ));
+            let result = HashMap::from_param_str(&profile.to_param_str());
+            
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), profile);
+        }
+    }
 }
