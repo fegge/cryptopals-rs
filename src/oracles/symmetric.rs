@@ -143,3 +143,125 @@ pub mod simple_ecb_decryption {
     }
 
 }
+
+
+pub mod ecb_cut_and_paste {
+    use rand;
+    use std::str::FromStr;
+    
+    use crate::crypto::symmetric;
+    use symmetric::ciphers::{Cipher, Aes128};
+    use symmetric::padding_modes::Pkcs7;
+    use symmetric::cipher_modes::{CipherMode, Ecb};
+
+    type Aes128Ecb = Ecb<Aes128, Pkcs7>;
+
+    #[derive(Debug)]
+    pub enum Error {
+        EncodingError,
+        DecodingError,
+        CipherError,
+    }
+
+    impl From<std::num::ParseIntError> for Error {
+        fn from(_: std::num::ParseIntError) -> Self {
+            Error::DecodingError
+        }
+    }
+    
+    impl From<symmetric::Error> for Error {
+        fn from(_: symmetric::Error) -> Self {
+            Error::CipherError
+        }
+    }
+
+    pub enum Role {
+        User,
+        Admin
+    }
+
+    impl ToString for Role {
+        fn to_string(&self) -> String {
+            match self {
+                Role::User => String::from("user"),
+                Role::Admin => String::from("admin"),
+            }
+        }
+    }
+
+    impl FromStr for Role {
+        type Err = Error;
+
+        fn from_str(role: &str) -> Result<Self, Self::Err> {
+            match role {
+                "user" => Ok(Role::User),
+                "admin" => Ok(Role::Admin),
+                _ => Err(Error::DecodingError)
+            }
+        }
+    }
+
+    pub struct Profile {
+        email: String,
+        uid: u64,
+        role: Role
+    }
+
+    impl ToString for Profile {
+        fn to_string(&self) -> String {
+            vec![
+                format!("email={}", self.email.replace("=", "").replace("&", "")),
+                format!("uid={}", self.uid),
+                format!("role={}", self.role.to_string())
+            ].join("&")
+        }
+    }
+
+    impl FromStr for Profile {
+        type Err = Error;
+
+        fn from_str(param_str: &str) -> Result<Self, Self::Err> {
+            let mut email = None;
+            let mut uid = None;
+            let mut role = None;
+            for param in param_str.split("&") {
+                let mut tokens = param.split("=");
+                match (tokens.next(), tokens.next()) {
+                    (Some("email"), Some(value)) => email = Some(value.to_owned()),
+                    (Some("uid"), Some(value)) => uid = Some(value.parse()?),
+                    (Some("role"), Some(value)) => role = Some(value.parse()?),
+                    _ => return Err(Error::DecodingError)
+                };
+            }
+            if email.is_some() && uid.is_some() && role.is_some() {
+                Ok(Profile { email: email.unwrap(), uid: uid.unwrap(), role: role.unwrap() })
+            } else {
+                Err(Error::DecodingError)
+            }
+        }
+    }
+
+    pub struct Oracle {
+        cipher: Aes128Ecb
+    }
+
+    impl Oracle {
+        pub fn new() -> Result<Self, Error> {
+            let key: Vec<u8> = (0..Aes128::KEY_SIZE).map(|_| { rand::random() }).collect();
+            let cipher = Aes128Ecb::new(&key)?;
+            Ok(Oracle { cipher })
+        }
+
+        pub fn get_profile_for(&mut self, email: &str) -> Result<Vec<u8>, Error> {
+            let profile = Profile { email: email.to_owned(), uid: 10, role: Role::User };
+            self.cipher.encrypt_str(&profile.to_string()[..]).map_err(Error::from)
+        }
+
+        pub fn get_role_from(&mut self, input_buffer: &[u8]) -> Result<Role, Error> {
+            let param_str = self.cipher
+                .decrypt_str(input_buffer)
+                .map_err(Error::from)?;
+            Ok(Profile::from_str(&param_str)?.role)
+        }
+    }
+}
