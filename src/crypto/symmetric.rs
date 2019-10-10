@@ -1,7 +1,18 @@
+use std::string::FromUtf8Error;
+
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
+    DecodingError,
     PaddingError,
     CipherError,
+}
+
+
+impl From<FromUtf8Error> for Error {
+    fn from(_: FromUtf8Error) -> Self {
+        Error::DecodingError
+    }
 }
 
 
@@ -354,6 +365,15 @@ pub mod cipher_modes {
             let output_size = self.decrypt_inplace(&mut output_buffer)?;
             output_buffer.truncate(output_size);
             Ok(output_buffer)
+        }
+
+        fn encrypt_str(&mut self, input_str: &str) -> Result<Vec<u8>, Error> {
+            self.encrypt_buffer(input_str.as_bytes())
+        }
+
+        fn decrypt_str(&mut self, input_buffer: &[u8]) -> Result<String, Error> {
+            let output_buffer = self.decrypt_buffer(input_buffer)?;
+            String::from_utf8(output_buffer).map_err(Error::from)
         }
     }
 
