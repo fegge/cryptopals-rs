@@ -87,3 +87,51 @@ pub mod simple_ecb_decryption {
         }
     }
 }
+
+
+pub mod ecb_cut_and_paste {
+        use std::iter::repeat;
+
+        use crate::oracles;
+        use oracles::symmetric::ecb_cut_and_paste::Error;
+
+        use crate::crypto;
+        use crypto::symmetric::ciphers::{Cipher, Aes128};
+        use crypto::symmetric::padding_modes::{PaddingMode, Pkcs7};
+
+        // Encrypting the profile corresponding to the first email address
+        // yields (email=...) (admin\x11 ... \x11) (...) where the second
+        // contains the string "admin" followed by a valid PKCS7 padding.
+        fn get_admin_string() -> String {
+            // The length of the first block ("email=" + padding) must be 16.
+            let padding_size = Pkcs7::min_padding_size(Aes128::BLOCK_SIZE, "email=".len());
+            let padding_string = repeat(" ").take(padding_size).collect::<String>();
+            
+            // The length of the second block ("admin" + padding) must be 16.
+            let padding_size = Pkcs7::min_padding_size(Aes128::BLOCK_SIZE, "admin".len());
+            let padding_bytes = repeat(padding_size as u8).take(padding_size).collect::<Vec<u8>>();
+            format!("{}admin{}@bar.com", padding_string, std::str::from_utf8(&padding_bytes).unwrap())
+        }
+
+        // Encrypting the profile corresponding to the second email address
+        // yields (email=...) (...role=) (...). Thus if we replace the third
+        // with the second block from above, we get a valid parameter string
+        // corresponding to a profile with admin privileges.
+        fn get_email_string() -> String {
+            // The length of the email plus '&uid=10&role=' must be and even multiple of 16.
+            "admin@cryp.to".to_string()
+        }
+    
+        pub fn get_admin_profile<Oracle>(mut get_profile_for: Oracle) -> Result<Vec<u8>, Error>
+            where Oracle : FnMut(&str) -> Result<Vec<u8>, Error> {
+            let admin_bytes = get_profile_for(&get_admin_string())?
+                .chunks(Aes128::BLOCK_SIZE)
+                .skip(1)
+                .next()
+                .ok_or(Error::CipherError)?
+                .to_owned();
+            let mut profile_bytes: Vec<u8> = get_profile_for(&get_email_string())?;
+            profile_bytes.splice(2 * Aes128::BLOCK_SIZE.., admin_bytes.iter().cloned());
+            Ok(profile_bytes)
+    }
+}

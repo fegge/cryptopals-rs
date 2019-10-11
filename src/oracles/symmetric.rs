@@ -175,6 +175,7 @@ pub mod ecb_cut_and_paste {
         }
     }
 
+    #[derive(Debug, PartialEq)]
     pub enum Role {
         User,
         Admin

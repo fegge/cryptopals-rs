@@ -35,15 +35,11 @@ mod set_2 {
            let buffer = include_str!("../data/set_2/problem_10.txt").replace("\n", "");
            let buffer = base64::decode(&buffer).unwrap().to_owned();
 
-           let result = cipher.decrypt_buffer(&buffer);
+           let result = cipher.decrypt_str(&buffer);
            assert!(result.is_ok()); 
             
-           let buffer = result.unwrap();
-           let string = std::str::from_utf8(&buffer);
-           assert!(string.is_ok());
-
            // Prints the lyrics for 'Play that funky music'.
-           // println!("{}", string.unwrap());
+           // println!("{}", result.unwrap());
        }
     }
 
@@ -80,24 +76,16 @@ mod set_2 {
     }
 
     mod problem_13 {
-        use maplit::{convert_args, hashmap};
+        use cryptopals::{oracles, attacks};
+        use oracles::symmetric::ecb_cut_and_paste::{Role, Oracle};
+        use attacks::symmetric::ecb_cut_and_paste::get_admin_profile;
 
-        use std::collections::HashMap;
-
-        use cryptopals::http;
-        use http::request::{FromParamStr, ToParamStr};
-        
         #[test]
         fn solution() {
-            let profile: HashMap<String, String> = convert_args!(hashmap!(
-                "email" => "foo@bar.com",
-                "uid" => "10",
-                "role" => "user",
-            ));
-            let result = HashMap::from_param_str(&profile.to_param_str());
+            let mut oracle = Oracle::new().unwrap();
+            let profile = get_admin_profile(|email| oracle.get_profile_for(email)).unwrap();
             
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap(), profile);
+            assert_eq!(oracle.get_role_from(&profile).unwrap(), Role::Admin);
         }
     }
 }
