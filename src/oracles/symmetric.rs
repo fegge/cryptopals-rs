@@ -94,6 +94,7 @@ pub mod ecb_cbc_detection {
 
 pub mod simple_ecb_decryption {
     use rand;
+    use rand::Rng;
 
     use crate::crypto::symmetric;
 
@@ -106,25 +107,29 @@ pub mod simple_ecb_decryption {
 
     pub struct Oracle {
         cipher: Aes128Ecb,
-        pub unknown_data: Vec<u8>
+        random_data: Vec<u8>,
+        pub unknown_data: Vec<u8>,
     }
 
     impl Oracle {
-        pub fn new() -> Result<Self, Error> {
+        pub fn new(with_random_data: bool) -> Result<Self, Error> {
             let key: Vec<u8> = (0..Aes128::KEY_SIZE).map(|_| { rand::random() }).collect();
             let cipher = Aes128Ecb::new(&key)?;
             
+            let random_size = if with_random_data { rand::thread_rng().gen_range(0, Aes128::BLOCK_SIZE) } else { 0 };
+            let random_data: Vec<u8> = (0..random_size).map(|_| { rand::random() }).collect(); 
             let unknown_data = include_str!("../../data/set_2/problem_12.txt").replace("\n", "");
             let unknown_data = base64::decode(&unknown_data).unwrap().to_owned();
             
-            Ok(Oracle { cipher, unknown_data })
+            Ok(Oracle { cipher, random_data, unknown_data })
         }
         
         fn build_plaintext(&self, known_data: &[u8]) -> Vec<u8> {
-            // Ensure there is enough space for the random prefix, random suffix and PKCS7 padding.
-            let maximum_size = self.unknown_data.len() + known_data.len() + Aes128::BLOCK_SIZE;
+            // Ensure there is enough space for the random prefix, unknown suffix and PKCS7 padding.
+            let maximum_size = self.random_data.len() + known_data.len() + self.unknown_data.len() + Aes128::BLOCK_SIZE;
             let mut plaintext = Vec::with_capacity(maximum_size);
-
+            
+            plaintext.extend(&self.random_data);
             plaintext.extend(known_data);
             plaintext.extend(&self.unknown_data);
 

@@ -66,7 +66,7 @@ mod set_2 {
 
         #[test]
         fn solution() {
-            let mut oracle: Oracle = Oracle::new().unwrap();
+            let mut oracle: Oracle = Oracle::new(false).unwrap();
             let result = get_unknown_data(
                 |buffer| { oracle.encrypt_buffer(buffer) }
             ); 
@@ -86,6 +86,22 @@ mod set_2 {
             let profile = get_admin_profile(|email| oracle.get_profile_for(email)).unwrap();
             
             assert_eq!(oracle.get_role_from(&profile).unwrap(), Role::Admin);
+        }
+    }
+
+    mod problem_14 {
+        use cryptopals::{oracles, attacks};
+        use oracles::symmetric::simple_ecb_decryption::Oracle;
+        use attacks::symmetric::harder_ecb_decryption::get_unknown_data;
+    
+        #[test]
+        fn solution() {
+            let mut oracle = Oracle::new(true).unwrap();
+            let result = get_unknown_data(
+                |buffer| { oracle.encrypt_buffer(buffer) }
+            ); 
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), oracle.unknown_data); 
         }
     }
 }
