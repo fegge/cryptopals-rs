@@ -120,13 +120,16 @@ pub mod simple_ecb_decryption {
             let random_data: Vec<u8> = (0..random_size).map(|_| { rand::random() }).collect(); 
             let unknown_data = include_str!("../../data/set_2/problem_12.txt").replace("\n", "");
             let unknown_data = base64::decode(&unknown_data).unwrap().to_owned();
-            
             Ok(Oracle { cipher, random_data, unknown_data })
         }
         
         fn build_plaintext(&self, known_data: &[u8]) -> Vec<u8> {
             // Ensure there is enough space for the random prefix, unknown suffix and PKCS7 padding.
-            let maximum_size = self.random_data.len() + known_data.len() + self.unknown_data.len() + Aes128::BLOCK_SIZE;
+            let maximum_size = 
+                self.random_data.len() + 
+                known_data.len() + 
+                self.unknown_data.len() + 
+                Aes128::BLOCK_SIZE;
             let mut plaintext = Vec::with_capacity(maximum_size);
             
             plaintext.extend(&self.random_data);

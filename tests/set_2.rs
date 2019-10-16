@@ -35,6 +35,7 @@ mod set_2 {
            let buffer = include_str!("../data/set_2/problem_10.txt").replace("\n", "");
            let buffer = base64::decode(&buffer).unwrap().to_owned();
 
+           // This decodes the plaintext as UTF-8.
            let result = cipher.decrypt_str(&buffer);
            assert!(result.is_ok()); 
             
@@ -96,12 +97,34 @@ mod set_2 {
     
         #[test]
         fn solution() {
-            let mut oracle = Oracle::new(true).unwrap();
-            let result = get_unknown_data(
-                |buffer| { oracle.encrypt_buffer(buffer) }
-            ); 
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap(), oracle.unknown_data); 
+            for _ in 0..10 {
+                let mut oracle = Oracle::new(true).unwrap();
+                let result = get_unknown_data(
+                    |buffer| { oracle.encrypt_buffer(buffer) }
+                    ); 
+                assert!(result.is_ok());
+                assert_eq!(result.unwrap(), oracle.unknown_data); 
+            }    
+        }
+    }
+
+    mod problem_15 {
+        use cryptopals::crypto;
+        use crypto::symmetric::ciphers::{Cipher, Aes128};
+        use crypto::symmetric::padding_modes::{PaddingMode, Pkcs7};
+
+        #[test]
+        fn solution() {
+            let pkcs7 = Pkcs7::new(Aes128::BLOCK_SIZE);
+
+            let mut valid_input = "ICE ICE BABY\x04\x04\x04\x04".as_bytes().to_vec();
+            assert!(pkcs7.unpad_buffer(&mut valid_input).is_ok());
+
+            let mut invalid_input = "ICE ICE BABY\x05\x05\x05\x05".as_bytes().to_vec();
+            assert!(pkcs7.unpad_buffer(&mut invalid_input).is_err());
+            
+            let mut invalid_input = "ICE ICE BABY\x01\x02\x03\x04".as_bytes().to_vec();
+            assert!(pkcs7.unpad_buffer(&mut invalid_input).is_err());
         }
     }
 }

@@ -255,6 +255,14 @@ pub mod padding_modes {
         fn set_bytes(buffer: &mut [u8], value: u8) {
             for byte in buffer { *byte = value; }
         }
+
+        fn validate_padding(buffer: &[u8], padding_size: usize) -> bool {
+            padding_size <= buffer.len() && buffer
+                .iter()
+                .rev()
+                .take(padding_size)
+                .all(|byte| *byte as usize == padding_size)
+        }
     }
 
     impl PaddingMode for Pkcs7 {
@@ -276,7 +284,7 @@ pub mod padding_modes {
         fn unpad_inplace(&self, buffer: &[u8]) -> Result<usize, Error> {
             if let Some(&last_byte) = buffer.last() {
                 let padding_size = last_byte as usize;
-                if padding_size > buffer.len() {
+                if !Pkcs7::validate_padding(buffer, padding_size) {
                     return Err(Error::PaddingError);
                 }
                 return Ok(buffer.len() - padding_size);

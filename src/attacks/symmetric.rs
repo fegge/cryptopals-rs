@@ -139,64 +139,73 @@ pub mod ecb_cut_and_paste {
 
 pub mod harder_ecb_decryption {
     use crate::crypto::symmetric::Error;
+    use crate::crypto::symmetric::padding_modes::{PaddingMode, Pkcs7};
 
-    fn get_known_data(suffix_size: usize, block_size: usize) -> Vec<u8> {
-        let mut result = Vec::with_capacity(block_size);
-        result.resize(block_size - (suffix_size % block_size) - 1, 0);
-        result
+    use super::simple_ecb_decryption;
+
+    // A proxy object wrapping the encrypt_buffer oracle.
+    struct Proxy<Oracle> where Oracle: FnMut(&[u8]) -> Result<Vec<u8>, Error> {
+        prefix_size: usize,
+        padding_size: usize,
+        original_encrypt_buffer: Box<Oracle>,
     }
 
-    fn get_known_data_with_suffix(suffix: &[u8], block_size: usize) -> Vec<u8> {
-        let mut result = get_known_data(suffix.len(), block_size);
-        result.extend(suffix);
-        result
-    }
-
-    pub fn get_block_size<Oracle>(mut encrypt_buffer: Oracle) -> Result<usize, Error> 
-        where Oracle: FnMut(&[u8]) -> Result<Vec<u8>, Error> 
-    {
-        for block_size in 8..=256 {
-            let result = encrypt_buffer(&vec![0; 2 * block_size])?;
-            let mut blocks = result.chunks(block_size);
-            if blocks.next() == blocks.next() {
-                // Since the input is padded, the first block will always be Some(data).
-                return Ok(block_size);
-            }
+    impl<Oracle> Proxy<Oracle> where Oracle: FnMut(&[u8]) -> Result<Vec<u8>, Error> {
+        fn new(mut encrypt_buffer: Oracle) -> Result<Self, Error> {
+            let block_size = Proxy::get_block_size(|buffer| encrypt_buffer(buffer))?;
+            let prefix_size = Proxy::get_prefix_size(|buffer| encrypt_buffer(buffer))?;
+            let padding_size = Pkcs7::min_padding_size(block_size, prefix_size);
+            Ok(Proxy { 
+                prefix_size, 
+                padding_size, 
+                original_encrypt_buffer: Box::new(encrypt_buffer),
+            })
         }
-        Err(Error::CipherError)
-    }
 
-    pub fn get_unknown_data<Oracle>(mut encrypt_buffer: Oracle) -> Result<Vec<u8>, Error> 
-        where Oracle: FnMut(&[u8]) -> Result<Vec<u8>, Error> 
-    {
-        let block_size = get_block_size(|buffer| encrypt_buffer(buffer))?;
-        
-        let mut unknown_data = Vec::new();
-        loop {
-            let mut known_data = get_known_data(unknown_data.len(), block_size);
-            let target_data = encrypt_buffer(&known_data)?;
-            
-            known_data = get_known_data_with_suffix(&unknown_data, block_size);
-            let mut last_byte = 0;
-            known_data.push(last_byte);
-            let mut test_data = encrypt_buffer(&known_data)?;
-            
-            let begin = block_size * (unknown_data.len() / block_size);
-            let end = begin + block_size;
-            while test_data[begin..end] != target_data[begin..end] {           
-                if last_byte == 255 {
-                    // Note that this is not an error state. This will in fact
-                    // happen when we are trying to recover the padding bytes
-                    // since these change depending on the size of the message.
-                    unknown_data.pop();
-                    return Ok(unknown_data);
+        // Since the output size is always k * (block size) for some k, we can
+        // compute the block size as (k + 1) * (block size) - k * (block size).
+        fn get_block_size(mut encrypt_buffer: Oracle) -> Result<usize, Error> {
+            let output_size = encrypt_buffer(&[])?.len();
+            for input_size in 8..=256 {
+                let block_size = encrypt_buffer(&vec![0; 2 * input_size])?.len() - output_size;
+                if block_size > 0 { return Ok(block_size) }
+            }
+            Err(Error::CipherError)
+        }
+
+        // If two consecutive encrypted blocks are equal, the size of the known
+        // data must be (prefix size) % (block size) + k * (block size) for k > 1.
+        fn get_prefix_size(mut encrypt_buffer: Oracle) -> Result<usize, Error> {
+            let block_size = Proxy::get_block_size(|buffer| encrypt_buffer(buffer))?;
+            for known_size in 1..=256 {
+                let result = encrypt_buffer(&vec![0; known_size])?;
+                let blocks: Vec<&[u8]> = result.chunks(block_size).collect();
+                for i in 0 .. blocks.len() - 1 {
+                    if blocks[i] == blocks[i + 1] {
+                        let padding_size = known_size % block_size;
+                        return Ok(i * block_size - padding_size);
+                    }
                 }
-                last_byte += 1;
-                *known_data.last_mut().unwrap() = last_byte;
-                test_data = encrypt_buffer(&known_data)?;
             }
-            unknown_data.push(last_byte);
+            Err(Error::CipherError)
         }
+
+        pub fn encrypt_buffer(&mut self, buffer: &[u8]) -> Result<Vec<u8>, Error> {
+            let padded_size = self.padding_size +  buffer.len();
+            let mut padded_buffer = Vec::with_capacity(padded_size);
+            padded_buffer.extend(vec![0; self.padding_size]);
+            padded_buffer.extend(buffer);
+
+            let prefix_size = self.prefix_size + self.padding_size;
+            let result = (self.original_encrypt_buffer)(&padded_buffer);
+            Ok(result?[prefix_size..].to_vec())
+        }
+    }
+
+    pub fn get_unknown_data<Oracle>(encrypt_buffer: Oracle) -> Result<Vec<u8>, Error>
+        where Oracle: FnMut(&[u8]) -> Result<Vec<u8>, Error> {
+        let mut proxy = Proxy::new(encrypt_buffer)?;
+        simple_ecb_decryption::get_unknown_data(|buffer| proxy.encrypt_buffer(buffer))
     }
 }
 
