@@ -24,7 +24,7 @@ mod set_3 {
 
         #[test]
         fn solution() {
-            for _ in 0..100 {
+            for _ in 0..10 {
                 let seed = get_unix_time().unwrap();
                 let output = Mt19337::new(seed as u32).next_u32();
                 let result = recover_timestamp_from(output);
