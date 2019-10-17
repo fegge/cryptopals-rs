@@ -274,3 +274,38 @@ pub mod ecb_cut_and_paste {
         }
     }
 }
+
+mod cbc_bitflipping_attacks {
+    use crate::crypto::symmetric;
+    
+    use symmetric::Error;
+    use symmetric::ciphers::{Cipher, Aes128};
+    use symmetric::padding_modes::Pkcs7;
+    use symmetric::cipher_modes::{CipherMode, Cbc};
+
+    type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+    
+    pub struct Oracle {
+        cipher: Aes128Cbc
+    }
+
+    impl Oracle {
+        pub fn new() -> Result<Self, Error> {
+            let key: Vec<u8> = (0..Aes128::KEY_SIZE).map(|_| { rand::random() }).collect();
+            let iv: Vec<u8> = (0..Aes128::BLOCK_SIZE).map(|_| { rand::random() }).collect();
+            let cipher = Aes128Cbc::new(&key, &iv)?;
+            Ok(Oracle { cipher })
+        }
+
+        pub fn encrypt_user_data(&mut self, user_data: &str) -> Result<Vec<u8>, Error> {
+            let comment_1 = "comment1=cooking%20MCs";
+            let comment_2 = "comment2=%20like%20a%20pound%20of%20bacon"; 
+            self.cipher.encrypt_str(&format!("{};userdata={};{}", comment_1, user_data, comment_2))
+        }
+
+        pub fn is_admin_user(&mut self, input_buffer: &[u8]) -> Result<bool, Error> {
+            self.cipher.decrypt_str(input_buffer)?
+            Ok(Profile::from_str(&param_str)?.role)
+        }
+    }
+}
