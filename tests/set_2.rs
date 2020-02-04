@@ -101,7 +101,7 @@ mod set_2 {
                 let mut oracle = Oracle::new(true).unwrap();
                 let result = get_unknown_data(
                     |buffer| { oracle.encrypt_buffer(buffer) }
-                    ); 
+                ); 
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), oracle.unknown_data); 
             }    
@@ -125,6 +125,25 @@ mod set_2 {
             
             let mut invalid_input = "ICE ICE BABY\x01\x02\x03\x04".as_bytes().to_vec();
             assert!(pkcs7.unpad_buffer(&mut invalid_input).is_err());
+        }
+    }
+
+    mod problem_16 {
+        use cryptopals::oracles::symmetric::cbc_bitflipping_attacks::Oracle;
+        use cryptopals::attacks::symmetric::cbc_bitflipping_attacks::get_admin_profile;
+    
+        #[test]
+        fn solution() {
+            let mut oracle = Oracle::new().unwrap();
+            // We assume that we know the size of the prefix. Alternatively, we could 
+            // guess the size of the prefix and query the oracle once for verification.
+            let comment_1 = "comment1=cooking%20MCs";
+            let result = get_admin_profile(
+                comment_1.len(), 
+                &mut |buffer| { oracle.encrypt_user_data(buffer) }
+            );
+            assert!(result.is_ok());
+            assert_eq!(oracle.is_admin_user(&result.unwrap()), Ok(true));
         }
     }
 }

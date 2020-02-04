@@ -209,3 +209,42 @@ pub mod harder_ecb_decryption {
     }
 }
 
+pub mod cbc_bitflipping_attacks {
+    use crate::crypto::symmetric;
+    use symmetric::ciphers::{Cipher, Aes128};
+
+    #[derive(Debug)]
+    pub enum Error {
+        CipherError,
+        RecoveryError
+    }
+
+    impl From<symmetric::Error> for Error {
+        fn from(_: symmetric::Error) -> Error {
+            Error::CipherError
+        }
+    }
+
+    // By encrypting a long sequence of 'A's we know that (at least) one ciphertext block C will
+    // decrypt to a plaintext block P with prefix "AA...A" of the same size as the target
+    // plaintext. Now, if we XOR the ciphertext block immediately before C with the difference
+    // between our target plaintext and "AA...A", the resulting ciphertext will decrypt to a random
+    // block, followed by the target plaintext.
+    pub fn get_admin_profile<Oracle>(
+        prefix_size: usize,
+        encrypt_buffer: &mut Oracle
+    ) -> Result<Vec<u8>, Error> where
+        Oracle: FnMut(&str) -> Result<Vec<u8>, symmetric::Error>
+    {
+        let target_str = ";admin=true;";
+        let user_str = std::iter::repeat("A")
+            .take(Aes128::BLOCK_SIZE + target_str.len())
+            .collect::<String>();
+        let mut result = encrypt_buffer(&user_str)?;
+        let offset = prefix_size - (prefix_size % Aes128::BLOCK_SIZE);
+        for (index, byte) in target_str.as_bytes().iter().enumerate() {
+            result[offset + index] ^= ('A' as u8) ^ byte;
+        }
+        Ok(result)
+    }
+}

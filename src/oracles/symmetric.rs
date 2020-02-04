@@ -211,15 +211,15 @@ pub mod ecb_cut_and_paste {
     }
 
     pub struct Profile {
-        email: String,
-        uid: u64,
-        role: Role
+        pub email: String,
+        pub uid: u64,
+        pub role: Role
     }
 
     impl ToString for Profile {
         fn to_string(&self) -> String {
             vec![
-                format!("email={}", self.email.replace("=", "").replace("&", "")),
+                format!("email={}", self.email.replace("=", "%3D").replace("&", "%26")),
                 format!("uid={}", self.uid),
                 format!("role={}", self.role.to_string())
             ].join("&")
@@ -275,16 +275,16 @@ pub mod ecb_cut_and_paste {
     }
 }
 
-mod cbc_bitflipping_attacks {
+pub mod cbc_bitflipping_attacks {
     use crate::crypto::symmetric;
-    
+   
     use symmetric::Error;
     use symmetric::ciphers::{Cipher, Aes128};
     use symmetric::padding_modes::Pkcs7;
     use symmetric::cipher_modes::{CipherMode, Cbc};
 
     type Aes128Cbc = Cbc<Aes128, Pkcs7>;
-    
+   
     pub struct Oracle {
         cipher: Aes128Cbc
     }
@@ -300,12 +300,28 @@ mod cbc_bitflipping_attacks {
         pub fn encrypt_user_data(&mut self, user_data: &str) -> Result<Vec<u8>, Error> {
             let comment_1 = "comment1=cooking%20MCs";
             let comment_2 = "comment2=%20like%20a%20pound%20of%20bacon"; 
-            self.cipher.encrypt_str(&format!("{};userdata={};{}", comment_1, user_data, comment_2))
+           
+            let param_str = format!(
+                "{};userdata={};{}",
+                comment_1,
+                user_data.replace(";", "%3B").replace("=", "%3D"),
+                comment_2
+            );
+            self.cipher.encrypt_str(&param_str)
         }
 
         pub fn is_admin_user(&mut self, input_buffer: &[u8]) -> Result<bool, Error> {
-            self.cipher.decrypt_str(input_buffer)?
-            Ok(Profile::from_str(&param_str)?.role)
+            // Note: We cannot use Cipher.decrypt_str here since that would
+            // reject any buffer which didn't decode to valid UTF-8, which
+            // in turn would prevent the attack we are trying to implement.
+            let target_buffer = "admin=true".as_bytes();
+            let param_buffer = self.cipher.decrypt_buffer(input_buffer)?;
+            for param_slice in param_buffer.split(|&x| x as char == ';') {
+                if param_slice == target_buffer {
+                    return Ok(true)
+                }
+            }
+            return Ok(false)
         }
     }
 }
