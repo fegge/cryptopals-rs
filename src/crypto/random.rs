@@ -1,4 +1,8 @@
 pub mod mersenne_twister {
+    use rand;
+    use rand::Rng;
+
+    use std::cmp::PartialEq;
     use std::num::Wrapping;
 
     pub struct Mt19337 {
@@ -24,6 +28,21 @@ pub mod mersenne_twister {
             result
         }
 
+        pub fn random() -> Self {
+            Self::new(rand::thread_rng().gen::<u32>())
+        }
+
+        pub fn from_state(state: [u32; Self::SIZE], index: usize) -> Self {
+            let mut wrapping_state = [Wrapping(0); Self::SIZE];
+            for i in 0..Self::SIZE {
+                wrapping_state[i] = Wrapping(state[i]);
+            }
+            Mt19337 {
+                state: wrapping_state,
+                index
+            }
+        }
+
         pub fn seed(&mut self, seed: u32) {
             self.state[0] = Wrapping(seed);
             for i in 1..Mt19337::SIZE {
@@ -38,6 +57,7 @@ pub mod mersenne_twister {
                 self.twist();
             }
             let mut x = self.state[self.index];
+            // println!("state: 0x{:08x}", x);
 
             x ^=  x >> 11;
             x ^= (x <<  7) & Mt19337::FIRST_MASK;
@@ -63,6 +83,13 @@ pub mod mersenne_twister {
             let x = (self.state[k] & Mt19337::UPPER_MASK) | (self.state[0] & Mt19337::LOWER_MASK);
             self.state[k] = self.state[n - 1] ^ (x >> 1) ^ ((x & Wrapping(1)) * Mt19337::TWIST_CONST);
             self.index = 0;
+        }
+    }
+
+    impl PartialEq for Mt19337 {
+        fn eq(&self, other: &Self) -> bool {
+            // Two Mt19337 instances are equal if the indices and internal state arrays are equal.
+            self.index == other.index && self.state.iter().zip(other.state.iter()).all(|(x, y)| x == y)
         }
     }
 
