@@ -15,28 +15,6 @@ pub struct Vector {
     limbs: Vec<u64>,
 }
 
-impl fmt::Debug for Vector {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        for index in 0..self.dimension {
-            write!(formatter, "{}", self.get_element(index))?
-        }
-        Ok(())
-    }
-}
-
-impl fmt::Display for Vector {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "(")?;
-        for index in 0..self.dimension {
-            if index > 0 {
-                write!(formatter, ", ")?
-            }
-            write!(formatter, "{}", self.get_element(index))?
-        }
-        write!(formatter, ")")
-    }
-}
-
 impl Vector {
     // Returns a new vector of the given dimension.
     pub fn new(dimension: usize) -> Self {
@@ -162,6 +140,41 @@ impl Vector {
     }
 }
 
+impl fmt::Debug for Vector {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        for index in 0..self.dimension {
+            write!(formatter, "{}", self.get_element(index))?
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for Vector {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "(")?;
+        for index in 0..self.dimension {
+            if index > 0 {
+                write!(formatter, ", ")?
+            }
+            write!(formatter, "{}", self.get_element(index))?
+        }
+        write!(formatter, ")")
+    }
+}
+
+// Implements v + w for vectors w and w.
+impl ops::Add<Vector> for Vector {
+    type Output = Vector;
+
+    fn add(self, other: Vector) -> Vector {
+        assert_eq!(self.dimension, other.dimension);
+        Vector {
+            dimension: self.dimension, 
+            limbs: self.limbs.iter().zip(other.limbs.iter()).map( |(x, y)| x ^ y).collect()
+        }
+    }
+}
+
 // Implements v + w for vectors w and w.
 impl ops::Add<&Vector> for &Vector {
     type Output = Vector;
@@ -170,8 +183,16 @@ impl ops::Add<&Vector> for &Vector {
         assert_eq!(self.dimension, other.dimension);
         Vector {
             dimension: self.dimension, 
-            limbs: self.limbs.iter().zip(other.limbs.iter()).map( |(x, y)| x ^ y).collect()
+            limbs: self.limbs.iter().zip(other.limbs.iter()).map( |(x, y)| *x ^ *y).collect()
         }
+    }
+}
+
+// Implements v += w for vectors w and w.
+impl ops::AddAssign<Vector> for Vector {
+    fn add_assign(&mut self, other: Vector) {
+        assert_eq!(self.dimension, other.dimension);
+        self.limbs.iter_mut().zip(other.limbs.iter()).for_each(|(x, y)| { *x ^= *y });
     }
 }
 
@@ -209,10 +230,14 @@ impl Matrix {
         }
     }
     
-    pub fn diagonal(rows: usize) -> Matrix {
-        let mut result = Matrix::zeroes(rows, rows);
-        (0..rows).for_each(|i| result.set_element(i, i, 1));
+    pub fn diagonal(dimension: usize) -> Matrix {
+        let mut result = Matrix::zeroes(dimension, dimension);
+        (0..dimension).for_each(|i| result.set_element(i, i, 1));
         result
+    }
+    
+    pub fn identity(dimension: usize) -> Matrix {
+        Matrix::diagonal(dimension)
     }
     
     pub fn random(rows: usize, columns: usize) -> Matrix {
@@ -300,6 +325,19 @@ impl fmt::Display for Matrix {
 }
 
 // Implements A + B for matrices A and B.
+impl ops::Add<Matrix> for Matrix {
+    type Output = Matrix;
+
+    fn add(self, other: Matrix) -> Matrix {
+        assert_eq!(self.dimensions, other.dimensions);
+        Matrix {
+            dimensions: self.dimensions,
+            rows: self.rows.iter().zip(other.rows.iter()).map( |(v, w)| v + w).collect()
+        }
+    }
+}
+
+// Implements A + B for matrices A and B.
 impl ops::Add<&Matrix> for &Matrix {
     type Output = Matrix;
 
@@ -313,10 +351,174 @@ impl ops::Add<&Matrix> for &Matrix {
 }
 
 // Implements A += B for matrices A and B.
+impl ops::AddAssign<Matrix> for Matrix {
+    fn add_assign(&mut self, other: Matrix) {
+        assert_eq!(self.dimensions, other.dimensions);
+        self.rows.iter_mut().zip(other.rows.iter()).for_each(|(v, w)| { *v += w });
+    }
+}
+
+// Implements A += B for matrices A and B.
 impl ops::AddAssign<&Matrix> for Matrix {
     fn add_assign(&mut self, other: &Matrix) {
         assert_eq!(self.dimensions, other.dimensions);
         self.rows.iter_mut().zip(other.rows.iter()).for_each(|(v, w)| { *v += w });
+    }
+}
+
+impl ops::Shl<usize> for Matrix {
+    type Output = Matrix;
+
+    fn shl(self, rhs: usize) -> Matrix {
+        let rows = (0..self.dimensions.0).map(|i| {
+            if i >= rhs {
+                self.rows[i - rhs].clone()
+            } else {
+                Vector::zeroes(self.dimensions.1)
+            }
+        }).collect();
+        Matrix {
+            dimensions: self.dimensions,
+            rows
+        }
+    }
+}
+
+impl ops::Shl<usize> for &Matrix {
+    type Output = Matrix;
+
+    fn shl(self, rhs: usize) -> Matrix {
+        let rows = (0..self.dimensions.0).map(|i| {
+            if i >= rhs {
+                self.rows[i - rhs].clone()
+            } else {
+                Vector::zeroes(self.dimensions.1)
+            }
+        }).collect();
+        Matrix {
+            dimensions: self.dimensions,
+            rows
+        }
+    }
+}
+
+impl ops::Shl<i32> for Matrix {
+    type Output = Matrix;
+
+    fn shl(self, rhs: i32) -> Matrix {
+        self.shl(rhs as usize)
+    }
+}
+
+impl ops::Shl<i32> for &Matrix {
+    type Output = Matrix;
+
+    fn shl(self, rhs: i32) -> Matrix {
+        self.shl(rhs as usize)
+    }
+}
+
+impl ops::Shl<u32> for Matrix {
+    type Output = Matrix;
+
+    fn shl(self, rhs: u32) -> Matrix {
+        self.shl(rhs as usize)
+    }
+}
+
+impl ops::Shl<u32> for &Matrix {
+    type Output = Matrix;
+
+    fn shl(self, rhs: u32) -> Matrix {
+        self.shl(rhs as usize)
+    }
+}
+
+impl ops::Shr<usize> for Matrix {
+    type Output = Matrix;
+
+    fn shr(self, rhs: usize) -> Matrix {
+        let rows = (0..self.dimensions.0).map(|i| {
+            if i + rhs < self.dimensions.0 {
+                self.rows[i + rhs].clone()
+            } else {
+                Vector::zeroes(self.dimensions.1)
+            }
+        }).collect();
+        Matrix {
+            dimensions: self.dimensions,
+            rows
+        }
+    }
+}
+
+impl ops::Shr<usize> for &Matrix {
+    type Output = Matrix;
+
+    fn shr(self, rhs: usize) -> Matrix {
+        let rows = (0..self.dimensions.0).map(|i| {
+            if i + rhs < self.dimensions.0 {
+                self.rows[i + rhs].clone()
+            } else {
+                Vector::zeroes(self.dimensions.1)
+            }
+        }).collect();
+        Matrix {
+            dimensions: self.dimensions,
+            rows
+        }
+    }
+}
+
+impl ops::Shr<i32> for Matrix {
+    type Output = Matrix;
+
+    fn shr(self, rhs: i32) -> Matrix {
+        self.shr(rhs as usize)
+    }
+}
+
+impl ops::Shr<i32> for &Matrix {
+    type Output = Matrix;
+
+    fn shr(self, rhs: i32) -> Matrix {
+        self.shr(rhs as usize)
+    }
+}
+
+impl ops::Shr<u32> for Matrix {
+    type Output = Matrix;
+
+    fn shr(self, rhs: u32) -> Matrix {
+        self.shr(rhs as usize)
+    }
+}
+
+impl ops::Shr<u32> for &Matrix {
+    type Output = Matrix;
+
+    fn shr(self, rhs: u32) -> Matrix {
+        self.shr(rhs as usize)
+    }
+}
+
+impl ops::BitAnd<Vector> for Matrix {
+    type Output = Matrix;
+
+    fn bitand(self, rhs: Vector) -> Matrix {
+        assert_eq!(self.dimensions.0, rhs.dimension);
+        let rows = (0..self.dimensions.0)
+            .map(|i| { if rhs.get_element(i) == 1 { 
+                self.rows[i].clone() 
+            } else { 
+                Vector::zeroes(self.dimensions.0) 
+            }})
+            .collect();
+        
+        Matrix {
+            dimensions: self.dimensions,
+            rows
+        }
     }
 }
 
@@ -339,6 +541,8 @@ impl GaussElimination {
                 return Ok(())
             }
         }
+        println!("Underdetermined:");
+        println!("{:?}", self.lhs);
         Err(Error::UnderDeterminedSystemError)
     }
 
@@ -358,6 +562,8 @@ impl GaussElimination {
         }
         for row in self.lhs.dimensions.1..self.lhs.dimensions.0 {
             if self.rhs.get_element(row) != 0 {
+                println!("Inconsistent:");
+                println!("{:?}", self.lhs);
                 return Err(Error::InconsistentSystemError);
             }
         }
@@ -386,6 +592,7 @@ mod tests {
         for i in 0..zeroes.dimension {
             assert_eq!(zeroes.get_element(i), 0);
         }
+        
         let ones = Vector::ones(101);
         for i in 0..ones.dimension {
             assert_eq!(ones.get_element(i), 1);
@@ -430,9 +637,10 @@ mod tests {
             }
         }
         assert_eq!(&lhs + &rhs, Vector::ones(17));
+        assert_eq!(lhs.clone() + rhs.clone(), Vector::ones(17));
         
         let mut result = lhs;
-        result += &rhs;
+        result += rhs;
         assert_eq!(result, Vector::ones(17));
     }
 
@@ -444,6 +652,25 @@ mod tests {
         }
         for (i, j) in (0..matrix.dimensions.0).zip(0..matrix.dimensions.1) {
             assert_eq!(matrix.get_element(i, j), (i + j) as u8 % 2);
+        }
+
+        let zeroes = Matrix::zeroes(32, 33);
+        for (i, j) in (0..zeroes.dimensions.0).zip(0..zeroes.dimensions.1) {
+            assert_eq!(zeroes.get_element(i, j), 0);
+        }
+        
+        let ones = Matrix::ones(32, 33);
+        for (i, j) in (0..ones.dimensions.0).zip(0..ones.dimensions.1) {
+            assert_eq!(ones.get_element(i, j), 1);
+        }
+        
+        let diagonal = Matrix::diagonal(32);
+        for (i, j) in (0..diagonal.dimensions.0).zip(0..diagonal.dimensions.1) {
+            if i == j {
+                assert_eq!(diagonal.get_element(i, j), 1);
+            } else {
+                assert_eq!(diagonal.get_element(i, j), 0);
+            }
         }
     }
     
@@ -472,9 +699,10 @@ mod tests {
             }
         }
         assert_eq!(&lhs + &rhs, Matrix::ones(17, 17));
+        assert_eq!(lhs.clone() + rhs.clone(), Matrix::ones(17, 17));
         
         let mut result = lhs;
-        result += &rhs;
+        result += rhs;
         assert_eq!(result, Matrix::ones(17, 17));
     }
 
