@@ -33,4 +33,23 @@ mod set_3 {
             }
         }
     }
+
+    mod problem_23 {
+        use cryptopals::crypto;
+        use crypto::random::mersenne_twister::Mt19337;
+        
+        use cryptopals::attacks::random::mersenne_twister::{recover_state_from};
+
+        #[test]
+        fn solution() {
+            for _ in 0..10 {
+                let mut random = Mt19337::random();
+                let mut state = [0; 624];
+                for i in 0..624 {
+                    state[i] = recover_state_from(random.next_u32()).unwrap();
+                }
+                assert_eq!(random, Mt19337::from_state(state, 624));
+            }
+        }
+    }
 }
