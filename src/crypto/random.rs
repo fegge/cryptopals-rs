@@ -2,6 +2,7 @@ pub mod mersenne_twister {
     use rand;
     use rand::Rng;
 
+    use std::fmt;
     use std::cmp::PartialEq;
     use std::num::Wrapping;
 
@@ -29,7 +30,7 @@ pub mod mersenne_twister {
         }
 
         pub fn random() -> Self {
-            Self::new(rand::thread_rng().gen::<u32>())
+            Self::new(rand::thread_rng().gen())
         }
 
         pub fn from_state(state: [u32; Self::SIZE], index: usize) -> Self {
@@ -57,7 +58,6 @@ pub mod mersenne_twister {
                 self.twist();
             }
             let mut x = self.state[self.index];
-            // println!("state: 0x{:08x}", x);
 
             x ^=  x >> 11;
             x ^= (x <<  7) & Mt19337::FIRST_MASK;
@@ -83,6 +83,15 @@ pub mod mersenne_twister {
             let x = (self.state[k] & Mt19337::UPPER_MASK) | (self.state[0] & Mt19337::LOWER_MASK);
             self.state[k] = self.state[n - 1] ^ (x >> 1) ^ ((x & Wrapping(1)) * Mt19337::TWIST_CONST);
             self.index = 0;
+        }
+    }
+
+    impl fmt::Debug for Mt19337 {
+        fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            writeln!(formatter, "Mt19337 {{")?;
+            writeln!(formatter, "    {:?},", self.state.iter().map(|x| x.0).collect::<Vec<u32>>())?;
+            writeln!(formatter, "    {}", self.index)?;
+            writeln!(formatter, "}}")
         }
     }
 
