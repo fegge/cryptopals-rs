@@ -1,5 +1,6 @@
 pub mod  mersenne_twister {
     use std::time::{SystemTime, SystemTimeError};
+    use crate::crypto::random::SeedableGenerator;
     use crate::crypto::random::mersenne_twister::Mt19337;
     
     use crate::math::linear_algebra;

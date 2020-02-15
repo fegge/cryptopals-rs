@@ -7,6 +7,7 @@ mod set_3 {
         use std::time::{Duration, SystemTime};
         
         use cryptopals::crypto;
+        use crypto::random::SeedableGenerator;
         use crypto::random::mersenne_twister::Mt19337;
         
         use cryptopals::attacks;
@@ -36,6 +37,7 @@ mod set_3 {
 
     mod problem_23 {
         use cryptopals::crypto;
+        use crypto::random::SeedableGenerator;
         use crypto::random::mersenne_twister::Mt19337;
         
         use cryptopals::attacks::random::mersenne_twister::{recover_state_from};

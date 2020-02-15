@@ -1,3 +1,21 @@
+pub trait SeedableGenerator {
+    type Seed;
+
+    fn random() -> Self;
+
+    fn new(seed: Self::Seed) -> Self;
+
+    fn seed(&mut self, seed: Self::Seed);
+
+    fn next_u8(&mut self) -> u8;
+
+    fn next_u16(&mut self) -> u16;
+    
+    fn next_u32(&mut self) -> u32;
+
+    fn next_u64(&mut self) -> u64;
+}
+
 pub mod mersenne_twister {
     use rand;
     use rand::Rng;
@@ -5,6 +23,8 @@ pub mod mersenne_twister {
     use std::fmt;
     use std::cmp::PartialEq;
     use std::num::Wrapping;
+
+    use super::SeedableGenerator;
 
     pub struct Mt19337 {
         state: [Wrapping<u32>; 624],
@@ -20,19 +40,6 @@ pub mod mersenne_twister {
         const SECOND_MASK: Wrapping<u32> = Wrapping(0xefc6_0000);
         const TWIST_CONST: Wrapping<u32> = Wrapping(0x9908_b0df);
 
-        pub fn new(seed: u32) -> Self {
-            let mut result = Self {
-                state: [Wrapping(0); Mt19337::SIZE],
-                index: 0
-            };
-            result.seed(seed);
-            result
-        }
-
-        pub fn random() -> Self {
-            Self::new(rand::thread_rng().gen())
-        }
-
         pub fn from_state(state: [u32; Self::SIZE], index: usize) -> Self {
             let mut wrapping_state = [Wrapping(0); Self::SIZE];
             for i in 0..Self::SIZE {
@@ -43,31 +50,7 @@ pub mod mersenne_twister {
                 index
             }
         }
-
-        pub fn seed(&mut self, seed: u32) {
-            self.state[0] = Wrapping(seed);
-            for i in 1..Mt19337::SIZE {
-                let x = self.state[i - 1] ^ (self.state[i - 1] >> 30);
-                self.state[i] = Mt19337::SEED_MULT * x + Wrapping(i as u32);
-            }
-            self.twist();
-        }
-
-        pub fn next_u32(&mut self) -> u32 {
-            if self.index >= Mt19337::SIZE {
-                self.twist();
-            }
-            let mut x = self.state[self.index];
-
-            x ^=  x >> 11;
-            x ^= (x <<  7) & Mt19337::FIRST_MASK;
-            x ^= (x << 15) & Mt19337::SECOND_MASK;
-            x ^=  x >> 18;
-
-            self.index += 1;
-            x.0
-        }
-
+        
         fn twist(&mut self) {
             let k = Mt19337::SIZE - 1;
             let m = 227;
@@ -83,6 +66,59 @@ pub mod mersenne_twister {
             let x = (self.state[k] & Mt19337::UPPER_MASK) | (self.state[0] & Mt19337::LOWER_MASK);
             self.state[k] = self.state[n - 1] ^ (x >> 1) ^ ((x & Wrapping(1)) * Mt19337::TWIST_CONST);
             self.index = 0;
+        }
+    }
+
+    impl SeedableGenerator for Mt19337 {
+        type Seed = u32;
+
+        fn new(seed: u32) -> Self {
+            let mut result = Self {
+                state: [Wrapping(0); Mt19337::SIZE],
+                index: 0
+            };
+            result.seed(seed);
+            result
+        }
+        
+        fn random() -> Self {
+            Self::new(rand::thread_rng().gen())
+        }
+
+        fn seed(&mut self, seed: u32) {
+            self.state[0] = Wrapping(seed);
+            for i in 1..Mt19337::SIZE {
+                let x = self.state[i - 1] ^ (self.state[i - 1] >> 30);
+                self.state[i] = Mt19337::SEED_MULT * x + Wrapping(i as u32);
+            }
+            self.twist();
+        }
+
+        fn next_u8(&mut self) -> u8 {
+            (self.next_u32() & 0xff) as u8
+        }
+        
+        fn next_u16(&mut self) -> u16 {
+            (self.next_u32() & 0xffff) as u16
+        }
+
+        fn next_u32(&mut self) -> u32 {
+            if self.index >= Mt19337::SIZE {
+                self.twist();
+            }
+            let mut x = self.state[self.index];
+
+            x ^=  x >> 11;
+            x ^= (x <<  7) & Mt19337::FIRST_MASK;
+            x ^= (x << 15) & Mt19337::SECOND_MASK;
+            x ^=  x >> 18;
+
+            self.index += 1;
+            x.0
+        }
+
+        fn next_u64(&mut self) -> u64 {
+            ((self.next_u32() as u64) << 32) ^ (self.next_u32() as u64)
         }
     }
 
@@ -104,6 +140,7 @@ pub mod mersenne_twister {
 
     #[cfg(test)]
     mod tests {
+        use super::super::SeedableGenerator;
         use super::Mt19337;
 
         #[test]
