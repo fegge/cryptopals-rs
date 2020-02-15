@@ -289,11 +289,11 @@ impl Matrix {
 
     fn get_right_delim(&self, row: usize) -> String {
         if row == 0 {
-            return String::from(" \\");
+            String::from(" \\")
         } else if row == self.dimensions.0 - 1 {
-            return String::from(" /");
+            String::from(" /")
         } else {
-            return String::from(" |");
+            String::from(" |")
         }
     }
 }
