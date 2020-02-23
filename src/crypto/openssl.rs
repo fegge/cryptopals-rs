@@ -70,14 +70,14 @@ pub mod aes {
         }
     }
    
-    pub fn encrypt_block<'a>(block: &'a mut [u8], key: &AES_KEY) -> &'a [u8] {
+    pub fn encrypt_inplace<'a>(block: &'a mut [u8], key: &AES_KEY) -> &'a [u8] {
         unsafe {
             AES_encrypt(block.as_ptr(), block.as_mut_ptr(), key);
         }
         block
     }
     
-    pub fn decrypt_block<'a>(block: &'a mut [u8], key: &AES_KEY) -> &'a [u8] {
+    pub fn decrypt_inplace<'a>(block: &'a mut [u8], key: &AES_KEY) -> &'a [u8] {
         unsafe {
             AES_decrypt(block.as_ptr(), block.as_mut_ptr(), key);
         }
@@ -138,7 +138,7 @@ pub mod aes {
         fn encrypt_aes_256() {
             let key = AES_KEY::new_encrypt_key(&RAW_KEY).unwrap();
             let mut block = PLAINTEXT.clone();
-            encrypt_block(&mut block, &key);
+            encrypt_inplace(&mut block, &key);
             assert_eq!(block, CIPHERTEXT);
         }
     
@@ -146,7 +146,7 @@ pub mod aes {
         fn decrypt_aes_256() {
             let key = AES_KEY::new_decrypt_key(&RAW_KEY).unwrap();
             let mut block = CIPHERTEXT.clone();
-            decrypt_block(&mut block, &key);
+            decrypt_inplace(&mut block, &key);
             assert_eq!(block, PLAINTEXT);
         }
     }

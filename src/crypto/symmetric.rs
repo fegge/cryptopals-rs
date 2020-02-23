@@ -29,11 +29,25 @@ pub mod ciphers {
 
         fn new(raw_key: &Key) -> Result<Self, Error>;
 
+        // TODO: encrypt_inplace should take a block of size Self::BLOCK_SIZE.
+        fn encrypt_inplace<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error>; 
+
+        // TODO: decrypt_inplace should take a block of size Self::BLOCK_SIZE.
+        fn decrypt_inplace<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error>; 
+        
         // TODO: encrypt_block should take a block of size Self::BLOCK_SIZE.
-        fn encrypt_block<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error>; 
+        fn encrypt_block(&self, block: &[u8]) -> Result<Vec<u8>, Error> {
+            let mut block = block.to_owned();
+            self.encrypt_inplace(&mut block)?;
+            Ok(block)
+        }
 
         // TODO: decrypt_block should take a block of size Self::BLOCK_SIZE.
-        fn decrypt_block<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error>; 
+        fn decrypt_block(&self, block: &[u8]) -> Result<Vec<u8>, Error> {
+            let mut block = block.to_owned();
+            self.decrypt_inplace(&mut block)?;
+            Ok(block)
+        }
     }
     
     impl From<openssl::Error> for Error {
@@ -64,15 +78,13 @@ pub mod ciphers {
             })
         }
 
-        // TODO: encrypt_block should take a block of size Self::BLOCK_SIZE.
-        fn encrypt_block<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> { 
-            aes::encrypt_block(block, &self.encrypt_key);
+        fn encrypt_inplace<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> { 
+            aes::encrypt_inplace(block, &self.encrypt_key);
             Ok(block)
         }
 
-        // TODO: decrypt_block should take a block of size Self::BLOCK_SIZE.
-        fn decrypt_block<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> {
-            aes::decrypt_block(block, &self.decrypt_key);
+        fn decrypt_inplace<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> {
+            aes::decrypt_inplace(block, &self.decrypt_key);
             Ok(block)
         }
     }
@@ -100,14 +112,14 @@ pub mod ciphers {
         }
 
         // TODO: encrypt_block should take a block of size Self::BLOCK_SIZE.
-        fn encrypt_block<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> { 
-            aes::encrypt_block(block, &self.encrypt_key);
+        fn encrypt_inplace<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> { 
+            aes::encrypt_inplace(block, &self.encrypt_key);
             Ok(block)
         }
 
         // TODO: decrypt_block should take a block of size Self::BLOCK_SIZE.
-        fn decrypt_block<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> {
-            aes::decrypt_block(block, &self.decrypt_key);
+        fn decrypt_inplace<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> {
+            aes::decrypt_inplace(block, &self.decrypt_key);
             Ok(block)
         }
     }
@@ -173,9 +185,9 @@ pub mod ciphers {
             let aes = Aes128::new(&RAW_KEY_128).unwrap();
 
             let mut block = PLAINTEXT_128.clone();
-            assert!(aes.encrypt_block(&mut block).is_ok());
-
+            assert!(aes.encrypt_inplace(&mut block).is_ok());
             assert_eq!(block, CIPHERTEXT_128);
+            assert_eq!(aes.encrypt_block(&PLAINTEXT_128).unwrap(), CIPHERTEXT_128);
         }
     
         #[test]
@@ -183,9 +195,9 @@ pub mod ciphers {
             let aes = Aes128::new(&RAW_KEY_128).unwrap();
 
             let mut block = CIPHERTEXT_128.clone();
-            assert!(aes.decrypt_block(&mut block).is_ok());
-
+            assert!(aes.decrypt_inplace(&mut block).is_ok());
             assert_eq!(block, PLAINTEXT_128);
+            assert_eq!(aes.decrypt_block(&CIPHERTEXT_128).unwrap(), PLAINTEXT_128);
         }
         
         #[test]
@@ -199,9 +211,9 @@ pub mod ciphers {
             let aes = Aes256::new(&RAW_KEY_256).unwrap();
 
             let mut block = PLAINTEXT_256.clone();
-            assert!(aes.encrypt_block(&mut block).is_ok());
-
+            assert!(aes.encrypt_inplace(&mut block).is_ok());
             assert_eq!(block, CIPHERTEXT_256);
+            assert_eq!(aes.encrypt_block(&PLAINTEXT_256).unwrap(), CIPHERTEXT_256);
         }
     
         #[test]
@@ -209,9 +221,9 @@ pub mod ciphers {
             let aes = Aes256::new(&RAW_KEY_256).unwrap();
 
             let mut block = CIPHERTEXT_256.clone();
-            assert!(aes.decrypt_block(&mut block).is_ok());
-
+            assert!(aes.decrypt_inplace(&mut block).is_ok());
             assert_eq!(block, PLAINTEXT_256);
+            assert_eq!(aes.decrypt_block(&CIPHERTEXT_256).unwrap(), PLAINTEXT_256);
         }
     }
 }
@@ -431,7 +443,7 @@ pub mod cipher_modes {
             assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
             self.padding.pad_inplace(buffer, size)?;
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
-                self.cipher.encrypt_block(&mut block)?;
+                self.cipher.encrypt_inplace(&mut block)?;
             }
             Ok(buffer)
         }
@@ -439,7 +451,7 @@ pub mod cipher_modes {
         fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error> {
             assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
-                self.cipher.decrypt_block(&mut block)?;
+                self.cipher.decrypt_inplace(&mut block)?;
             }
             self.padding.unpad_inplace(buffer)
         }
@@ -475,7 +487,7 @@ pub mod cipher_modes {
             self.padding.pad_inplace(buffer, size)?;
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
                 Self::xor_inplace(&mut block, &self.iv);
-                self.cipher.encrypt_block(&mut block)?;
+                self.cipher.encrypt_inplace(&mut block)?;
                 self.iv = block.to_owned();
             }
             Ok(buffer)
@@ -485,7 +497,7 @@ pub mod cipher_modes {
             assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
                 let next_iv = block.to_owned();
-                self.cipher.decrypt_block(&mut block)?;
+                self.cipher.decrypt_inplace(&mut block)?;
                 Self::xor_inplace(&mut block, &self.iv); 
                 self.iv = next_iv;
             }
@@ -528,7 +540,7 @@ pub mod cipher_modes {
 
         fn next_key(&mut self) -> Result<Vec<u8>, Error> {
             let mut key = self.next_counter();
-            self.cipher.encrypt_block(&mut key)?;
+            self.cipher.encrypt_inplace(&mut key)?;
             Ok(key)
         }
     }
@@ -613,81 +625,55 @@ pub mod cipher_modes {
 
         #[test]
         fn encrypt_ecb_mode() {
-            let cipher = Aes128Ecb::new(&RAW_KEY);
-            
-            assert!(cipher.is_ok());
-            let mut cipher = cipher.unwrap();
-            
+            let mut cipher = Aes128Ecb::new(&RAW_KEY).unwrap();
             let mut buffer = Vec::with_capacity(2 * Aes128::BLOCK_SIZE);
             buffer.extend(&PLAINTEXT);
             buffer.resize(2 * Aes128::BLOCK_SIZE, 0);
             let result = cipher.encrypt_inplace(&mut buffer, PLAINTEXT.len());
-            assert!(result.is_ok());
             assert_eq!(result.unwrap(), ECB_CIPHERTEXT);
 
-            let mut buffer = PLAINTEXT.to_owned();
-            let result = cipher.encrypt_buffer(&mut buffer);
-            assert!(result.is_ok());
+            let buffer = PLAINTEXT.to_owned();
+            let result = cipher.encrypt_buffer(&buffer);
             assert_eq!(&result.unwrap(), &ECB_CIPHERTEXT);
         }
         
         #[test]
         fn decrypt_ecb_mode() {
-            let cipher = Aes128Ecb::new(&RAW_KEY);
-            
-            assert!(cipher.is_ok());
-            let mut cipher = cipher.unwrap();
-            
+            let mut cipher = Aes128Ecb::new(&RAW_KEY).unwrap();
             let mut buffer = ECB_CIPHERTEXT.clone();
             let result = cipher.decrypt_inplace(&mut buffer);
-            assert!(result.is_ok());
             assert_eq!(buffer[..result.unwrap()], PLAINTEXT);
             
-            let mut buffer = ECB_CIPHERTEXT.to_owned();
-            let result = cipher.decrypt_buffer(&mut buffer);
-            assert!(result.is_ok());
+            let buffer = ECB_CIPHERTEXT.to_owned();
+            let result = cipher.decrypt_buffer(&buffer);
             assert_eq!(&result.unwrap(), &PLAINTEXT);
         }
         
         #[test]
         fn encrypt_cbc_mode() {
-            let cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV);
-            
-            assert!(cipher.is_ok());
-            let mut cipher = cipher.unwrap();
-            
+            let mut cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV).unwrap();
             let mut buffer = Vec::with_capacity(2 * Aes128::BLOCK_SIZE);
             buffer.extend(&PLAINTEXT);
             buffer.resize(2 * Aes128::BLOCK_SIZE, 0);
             let result = cipher.encrypt_inplace(&mut buffer, PLAINTEXT.len());
-            assert!(result.is_ok());
             assert_eq!(result.unwrap(), CBC_CIPHERTEXT);
 
             let mut cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV).unwrap();
-            
             let buffer = PLAINTEXT.to_owned();
             let result = cipher.encrypt_buffer(&buffer);
-            assert!(result.is_ok());
             assert_eq!(&result.unwrap(), &CBC_CIPHERTEXT);
         }
         
         #[test]
         fn decrypt_cbc_mode() {
-            let cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV);
-            
-            assert!(cipher.is_ok());
-            let mut cipher = cipher.unwrap();
-            
+            let mut cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV).unwrap();
             let mut buffer = CBC_CIPHERTEXT.clone();
             let result = cipher.decrypt_inplace(&mut buffer);
-            assert!(result.is_ok());
             assert_eq!(buffer[..result.unwrap()], PLAINTEXT);
             
             let mut cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV).unwrap();
-            
-            let mut buffer = CBC_CIPHERTEXT.to_owned();
-            let result = cipher.decrypt_buffer(&mut buffer);
-            assert!(result.is_ok());
+            let buffer = CBC_CIPHERTEXT.to_owned();
+            let result = cipher.decrypt_buffer(&buffer);
             assert_eq!(&result.unwrap(), &PLAINTEXT);
         }
 
@@ -705,41 +691,27 @@ pub mod cipher_modes {
         
         #[test]
         fn encrypt_ctr_mode() {
-            let cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV);
-            
-            assert!(cipher.is_ok());
-            let mut cipher = cipher.unwrap();
-            
+            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV).unwrap();
             let mut buffer = PLAINTEXT.to_owned();
             let result = cipher.encrypt_inplace(&mut buffer);
-            assert!(result.is_ok());
             assert_eq!(result.unwrap(), CTR_CIPHERTEXT);
 
             let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV).unwrap();
-            
             let buffer = PLAINTEXT.to_owned();
             let result = cipher.encrypt_buffer(&buffer);
-            assert!(result.is_ok());
             assert_eq!(&result.unwrap(), &CTR_CIPHERTEXT);
         }
         
         #[test]
         fn decrypt_ctr_mode() {
-            let cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV);
-            
-            assert!(cipher.is_ok());
-            let mut cipher = cipher.unwrap();
-            
+            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV).unwrap();
             let mut buffer = CTR_CIPHERTEXT.to_owned();
             let result = cipher.decrypt_inplace(&mut buffer);
-            assert!(result.is_ok());
             assert_eq!(result.unwrap(), PLAINTEXT);
             
             let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV).unwrap();
-            
-            let mut buffer = CTR_CIPHERTEXT.to_owned();
-            let result = cipher.decrypt_buffer(&mut buffer);
-            assert!(result.is_ok());
+            let buffer = CTR_CIPHERTEXT.to_owned();
+            let result = cipher.decrypt_buffer(&buffer);
             assert_eq!(&result.unwrap(), &PLAINTEXT);
         }
     }
