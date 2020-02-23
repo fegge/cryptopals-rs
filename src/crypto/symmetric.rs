@@ -397,7 +397,7 @@ pub mod cipher_modes {
         }
     }
     
-    pub trait StreamCipherMode<C: Cipher>: Sized {
+    pub trait StreamCipherMode: Sized {
         fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
 
         fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
@@ -545,7 +545,7 @@ pub mod cipher_modes {
         }
     }
 
-    impl<C: Cipher> StreamCipherMode<C> for Ctr<C> {
+    impl<C: Cipher> StreamCipherMode for Ctr<C> {
         fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
             let keys = iter::repeat_with(|| self.next_key());
             for (block, key) in buffer.chunks_mut(C::BLOCK_SIZE).zip(keys) {

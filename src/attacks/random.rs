@@ -1,6 +1,8 @@
 pub mod  mersenne_twister {
     use std::time::{SystemTime, SystemTimeError};
 
+    use crate::crypto::symmetric;
+    use symmetric::cipher_modes::StreamCipherMode;
     use crate::crypto::random::{RandomGenerator, SeedableGenerator};
     use crate::crypto::random::mersenne_twister::Mt19337;
     
@@ -14,7 +16,8 @@ pub mod  mersenne_twister {
     #[derive(Debug)]
     pub enum Error {
         UnixTimeError,
-        RecoveryError
+        RecoveryError,
+        CipherError
     }
 
     impl From<SystemTimeError> for Error {
@@ -23,6 +26,12 @@ pub mod  mersenne_twister {
         }
     }
 
+    impl From<symmetric::Error> for Error {
+        fn from(_: symmetric::Error) -> Self {
+            Error::CipherError
+        }
+    }
+    
     impl From<linear_algebra::Error> for Error {
         fn from(_: linear_algebra::Error) -> Self {
             Error::RecoveryError
@@ -67,5 +76,14 @@ pub mod  mersenne_twister {
             .solve()
             .map_err(Error::from)
             .map(|solution| solution.to_u32())
+    }
+
+    pub fn recover_key_from(input: &[u8], output: &[u8]) -> Result<u16, Error> {
+        for key in 0..=0xffff {
+            if Mt19337::new(key).encrypt_buffer(&input)? == output {
+                return Ok(key as u16)
+            }
+        }
+        Err(Error::RecoveryError)
     }
 }

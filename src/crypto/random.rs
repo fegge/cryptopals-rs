@@ -1,3 +1,6 @@
+use crate::crypto::symmetric;
+use symmetric::cipher_modes::StreamCipherMode;
+
 pub trait RandomGenerator {
     fn random() -> Self;
 
@@ -10,13 +13,23 @@ pub trait RandomGenerator {
     fn next_u64(&mut self) -> u64;
 }
 
-
 pub trait SeedableGenerator: RandomGenerator {
     type Seed;
 
     fn new(seed: Self::Seed) -> Self;
 
     fn seed(&mut self, seed: Self::Seed);
+}
+
+impl<G, S> StreamCipherMode for G where G: SeedableGenerator<Seed = S> {
+    fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], symmetric::Error> {
+        buffer.iter_mut().for_each(|x| *x ^= self.next_u8());
+        Ok(buffer)
+    }
+
+    fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], symmetric::Error> {
+        self.encrypt_inplace(buffer)
+    }
 }
 
 pub mod mersenne_twister {
@@ -145,8 +158,13 @@ pub mod mersenne_twister {
 
     #[cfg(test)]
     mod tests {
+        use crate::crypto::symmetric::cipher_modes::StreamCipherMode;
         use super::super::{RandomGenerator, SeedableGenerator};
         use super::Mt19337;
+        
+        const PLAINTEXT: [u8; 8] = [0; 8];
+        const CIPHERTEXT: [u8; 8] = [0x25, 0xeb, 0x8c, 0x48, 0xff, 0x89, 0xcb, 0x85];
+        
 
         #[test]
         fn known_output() {
@@ -158,6 +176,18 @@ pub mod mersenne_twister {
             for i in 0..output.len() {
                 assert_eq!(random.next_u32(), output[i]);
             }
+        }
+
+        #[test]
+        fn encrypt_buffer() {
+            let mut random = Mt19337::new(1);
+            assert_eq!(random.encrypt_buffer(&PLAINTEXT).unwrap(), &CIPHERTEXT);
+        }
+        
+        #[test]
+        fn decrypt_buffer() {
+            let mut random = Mt19337::new(1);
+            assert_eq!(random.decrypt_buffer(&CIPHERTEXT).unwrap(), &PLAINTEXT);
         }
     }
 }

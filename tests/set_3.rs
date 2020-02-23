@@ -24,13 +24,11 @@ mod set_3 {
 
         #[test]
         fn solution() {
-            for _ in 0..10 {
-                let seed = get_unix_time().unwrap();
-                let output = Mt19337::new(seed as u32).next_u32();
-                let result = recover_timestamp_from(output);
-                assert!(result.is_ok());
-                assert_eq!(result.unwrap(), seed); 
-            }
+            let seed = get_unix_time().unwrap();
+            let output = Mt19337::new(seed as u32).next_u32();
+            let result = recover_timestamp_from(output);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), seed); 
         }
     }
 
@@ -39,18 +37,39 @@ mod set_3 {
         use crypto::random::RandomGenerator;
         use crypto::random::mersenne_twister::Mt19337;
         
-        use cryptopals::attacks::random::mersenne_twister::{recover_state_from};
+        use cryptopals::attacks::random::mersenne_twister::recover_state_from;
 
         #[test]
         fn solution() {
-            for _ in 0..10 {
-                let mut random = Mt19337::random();
-                let mut state = [0; 624];
-                for i in 0..624 {
-                    state[i] = recover_state_from(random.next_u32()).unwrap();
-                }
-                assert_eq!(random, Mt19337::from_state(state, 624));
+            let mut random = Mt19337::random();
+            let mut state = [0; 624];
+            for i in 0..624 {
+                state[i] = recover_state_from(random.next_u32()).unwrap();
             }
+            assert_eq!(random, Mt19337::from_state(state, 624));
+        }
+    }
+
+    mod problem_24 {
+        use rand;
+        use rand::Rng;
+        use std::iter;
+
+        use cryptopals::crypto;
+        use crypto::random::SeedableGenerator;
+        use crypto::random::mersenne_twister::Mt19337;
+        use crypto::symmetric::cipher_modes::StreamCipherMode;
+
+        use cryptopals::attacks::random::mersenne_twister::recover_key_from;
+
+        #[test]
+        fn solution() {
+            let key = rand::thread_rng().gen::<u16>();
+            let mut random = Mt19337::new(key as u32);
+            let input = iter::repeat(b'A').take(14).collect::<Vec<u8>>();
+            let output = random.encrypt_buffer(&input).unwrap();
+            let result = recover_key_from(&input, &output);
+            assert_eq!(result.unwrap(), key);
         }
     }
 }
