@@ -1,11 +1,5 @@
-pub trait SeedableGenerator {
-    type Seed;
-
+pub trait RandomGenerator {
     fn random() -> Self;
-
-    fn new(seed: Self::Seed) -> Self;
-
-    fn seed(&mut self, seed: Self::Seed);
 
     fn next_u8(&mut self) -> u8;
 
@@ -16,6 +10,15 @@ pub trait SeedableGenerator {
     fn next_u64(&mut self) -> u64;
 }
 
+
+pub trait SeedableGenerator: RandomGenerator {
+    type Seed;
+
+    fn new(seed: Self::Seed) -> Self;
+
+    fn seed(&mut self, seed: Self::Seed);
+}
+
 pub mod mersenne_twister {
     use rand;
     use rand::Rng;
@@ -24,7 +27,7 @@ pub mod mersenne_twister {
     use std::cmp::PartialEq;
     use std::num::Wrapping;
 
-    use super::SeedableGenerator;
+    use super::{RandomGenerator, SeedableGenerator};
 
     pub struct Mt19337 {
         state: [Wrapping<u32>; 624],
@@ -69,31 +72,11 @@ pub mod mersenne_twister {
         }
     }
 
-    impl SeedableGenerator for Mt19337 {
-        type Seed = u32;
-
-        fn new(seed: u32) -> Self {
-            let mut result = Self {
-                state: [Wrapping(0); Mt19337::SIZE],
-                index: 0
-            };
-            result.seed(seed);
-            result
-        }
-        
+    impl RandomGenerator for Mt19337 {
         fn random() -> Self {
             Self::new(rand::thread_rng().gen())
         }
-
-        fn seed(&mut self, seed: u32) {
-            self.state[0] = Wrapping(seed);
-            for i in 1..Mt19337::SIZE {
-                let x = self.state[i - 1] ^ (self.state[i - 1] >> 30);
-                self.state[i] = Mt19337::SEED_MULT * x + Wrapping(i as u32);
-            }
-            self.twist();
-        }
-
+        
         fn next_u8(&mut self) -> u8 {
             (self.next_u32() & 0xff) as u8
         }
@@ -122,6 +105,28 @@ pub mod mersenne_twister {
         }
     }
 
+    impl SeedableGenerator for Mt19337 {
+        type Seed = u32;
+
+        fn new(seed: u32) -> Self {
+            let mut result = Self {
+                state: [Wrapping(0); Mt19337::SIZE],
+                index: 0
+            };
+            result.seed(seed);
+            result
+        }
+
+        fn seed(&mut self, seed: u32) {
+            self.state[0] = Wrapping(seed);
+            for i in 1..Mt19337::SIZE {
+                let x = self.state[i - 1] ^ (self.state[i - 1] >> 30);
+                self.state[i] = Mt19337::SEED_MULT * x + Wrapping(i as u32);
+            }
+            self.twist();
+        }
+    }
+
     impl fmt::Debug for Mt19337 {
         fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
             writeln!(formatter, "Mt19337 {{")?;
@@ -140,7 +145,7 @@ pub mod mersenne_twister {
 
     #[cfg(test)]
     mod tests {
-        use super::super::SeedableGenerator;
+        use super::super::{RandomGenerator, SeedableGenerator};
         use super::Mt19337;
 
         #[test]

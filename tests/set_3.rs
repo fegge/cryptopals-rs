@@ -7,12 +7,11 @@ mod set_3 {
         use std::time::{Duration, SystemTime};
         
         use cryptopals::crypto;
-        use crypto::random::SeedableGenerator;
+        use crypto::random::{RandomGenerator, SeedableGenerator};
         use crypto::random::mersenne_twister::Mt19337;
         
         use cryptopals::attacks;
         use attacks::random::mersenne_twister::{recover_timestamp_from, Error, MAXIMUM_DELTA};
-
 
         fn get_unix_time() -> Result<u64, Error> {
             // Simulate the passage of [0, MAXIMUM_DELTA) seconds.
@@ -37,7 +36,7 @@ mod set_3 {
 
     mod problem_23 {
         use cryptopals::crypto;
-        use crypto::random::SeedableGenerator;
+        use crypto::random::RandomGenerator;
         use crypto::random::mersenne_twister::Mt19337;
         
         use cryptopals::attacks::random::mersenne_twister::{recover_state_from};
