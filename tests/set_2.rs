@@ -21,7 +21,7 @@ mod set_2 {
         use cryptopals::crypto;
         
         use crypto::symmetric::padding_modes::Pkcs7;
-        use crypto::symmetric::cipher_modes::{CipherMode, Cbc};
+        use crypto::symmetric::cipher_modes::{BlockCipherMode, Cbc};
         use crypto::symmetric::ciphers::{Cipher, Aes128};
 
         type Aes128Cbc = Cbc<Aes128, Pkcs7>;

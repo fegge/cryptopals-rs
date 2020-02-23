@@ -5,7 +5,7 @@ pub mod ecb_cbc_detection {
     use crate::crypto::symmetric;
 
     use symmetric::padding_modes::{PaddingMode, Pkcs7};
-    use symmetric::cipher_modes::{CipherMode, Ecb, Cbc};
+    use symmetric::cipher_modes::{BlockCipherMode, Ecb, Cbc};
     use symmetric::ciphers::{Cipher, Aes128};
     use symmetric::Error;
 
@@ -99,7 +99,7 @@ pub mod simple_ecb_decryption {
     use crate::crypto::symmetric;
 
     use symmetric::padding_modes::{PaddingMode, Pkcs7};
-    use symmetric::cipher_modes::{CipherMode, Ecb};
+    use symmetric::cipher_modes::{BlockCipherMode, Ecb};
     use symmetric::ciphers::{Cipher, Aes128};
     use symmetric::Error;
 
@@ -160,7 +160,7 @@ pub mod ecb_cut_and_paste {
     use crate::crypto::symmetric;
     use symmetric::ciphers::{Cipher, Aes128};
     use symmetric::padding_modes::Pkcs7;
-    use symmetric::cipher_modes::{CipherMode, Ecb};
+    use symmetric::cipher_modes::{BlockCipherMode, Ecb};
 
     type Aes128Ecb = Ecb<Aes128, Pkcs7>;
 
@@ -281,7 +281,7 @@ pub mod cbc_bitflipping_attacks {
     use symmetric::Error;
     use symmetric::ciphers::{Cipher, Aes128};
     use symmetric::padding_modes::Pkcs7;
-    use symmetric::cipher_modes::{CipherMode, Cbc};
+    use symmetric::cipher_modes::{BlockCipherMode, Cbc};
 
     type Aes128Cbc = Cbc<Aes128, Pkcs7>;
    

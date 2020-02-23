@@ -216,7 +216,6 @@ pub mod ciphers {
     }
 }
 
-
 pub mod padding_modes {
     use super::Error;
 
@@ -348,13 +347,14 @@ pub mod padding_modes {
 
 
 pub mod cipher_modes {
+    use std::iter;
     use super::Error;
     use super::ciphers::{Cipher, Key};
     use super::padding_modes::PaddingMode;
     
     pub type Iv = [u8];
 
-    pub trait CipherMode<C: Cipher, P: PaddingMode>: Sized {
+    pub trait BlockCipherMode<C: Cipher, P: PaddingMode>: Sized {
         fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8], end: usize) -> Result<&'a [u8], Error>;
 
         fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error>;
@@ -384,6 +384,33 @@ pub mod cipher_modes {
             String::from_utf8(output_buffer).map_err(Error::from)
         }
     }
+    
+    pub trait StreamCipherMode<C: Cipher>: Sized {
+        fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
+
+        fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
+        
+        fn encrypt_buffer(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
+            let mut output_buffer = input_buffer.to_vec();
+            self.encrypt_inplace(&mut output_buffer)?;
+            Ok(output_buffer)
+        }
+
+        fn decrypt_buffer(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
+            let mut output_buffer = input_buffer.to_vec();
+            self.decrypt_inplace(&mut output_buffer)?;
+            Ok(output_buffer)
+        }
+
+        fn encrypt_str(&mut self, input_str: &str) -> Result<Vec<u8>, Error> {
+            self.encrypt_buffer(input_str.as_bytes())
+        }
+
+        fn decrypt_str(&mut self, input_buffer: &[u8]) -> Result<String, Error> {
+            let output_buffer = self.decrypt_buffer(input_buffer)?;
+            String::from_utf8(output_buffer).map_err(Error::from)
+        }
+    }
 
     pub struct Ecb<C: Cipher, P: PaddingMode> {
         cipher: C,
@@ -399,9 +426,10 @@ pub mod cipher_modes {
         }
     }
 
-    impl<C: Cipher, P: PaddingMode> CipherMode<C, P> for Ecb<C, P> {
-        fn encrypt_inplace<'a>(&mut self, mut buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
-            self.padding.pad_inplace(&mut buffer, size)?;
+    impl<C: Cipher, P: PaddingMode> BlockCipherMode<C, P> for Ecb<C, P> {
+        fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
+            assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
+            self.padding.pad_inplace(buffer, size)?;
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
                 self.cipher.encrypt_block(&mut block)?;
             }
@@ -409,6 +437,7 @@ pub mod cipher_modes {
         }
 
         fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error> {
+            assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
                 self.cipher.decrypt_block(&mut block)?;
             }
@@ -434,48 +463,101 @@ pub mod cipher_modes {
             })
         }
         
-        fn xor_blocks<'a>(lhs: &'a mut [u8], rhs: &[u8]) -> &'a [u8] {
-            lhs.iter_mut().zip(rhs).for_each(|(x, y)| {
-                *x ^= y;
-            });
+        fn xor_inplace<'a>(lhs: &'a mut [u8], rhs: &[u8]) -> &'a [u8] {
+            lhs.iter_mut().zip(rhs).for_each(|(x, y)| *x ^= y);
             lhs
         }
     }
 
-    impl<C: Cipher, P: PaddingMode> CipherMode<C, P> for Cbc<C, P> {
-        fn encrypt_inplace<'a>(&mut self, mut buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
-            self.padding.pad_inplace(&mut buffer, size)?;
+    impl<C: Cipher, P: PaddingMode> BlockCipherMode<C, P> for Cbc<C, P> {
+        fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
+            assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
+            self.padding.pad_inplace(buffer, size)?;
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
-                Self::xor_blocks(&mut block, &self.iv);
+                Self::xor_inplace(&mut block, &self.iv);
                 self.cipher.encrypt_block(&mut block)?;
                 self.iv = block.to_owned();
             }
             Ok(buffer)
         }
 
-        fn decrypt_inplace<'a>(&mut self, mut buffer: &'a mut [u8]) -> Result<usize, Error> {
-            for mut block in (&mut buffer).chunks_mut(C::BLOCK_SIZE) {
+        fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error> {
+            assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
+            for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
                 let next_iv = block.to_owned();
-                match self.cipher.decrypt_block(&mut block) {
-                    Ok(_) => { 
-                        Self::xor_blocks(&mut block, &self.iv); 
-                        self.iv = next_iv;
-                    }
-                    Err(error) => { return Err(error) }
-                }
+                self.cipher.decrypt_block(&mut block)?;
+                Self::xor_inplace(&mut block, &self.iv); 
+                self.iv = next_iv;
             }
             self.padding.unpad_inplace(buffer)
         }
     }
 
+    pub struct Ctr<C: Cipher> {
+        cipher: C,
+        counter: Vec<u8>
+    }
+
+    impl<C: Cipher> Ctr<C> {
+        pub fn new(key: &Key, iv: &Iv) -> Result<Self, Error> {
+            if iv.len() != C::BLOCK_SIZE {
+                return Err(Error::CipherError)
+            }
+            Ok(Self { 
+                cipher: C::new(&key)?,
+                counter: iv.to_owned(),
+            })
+        }
+        
+        fn xor_inplace<'a>(lhs: &'a mut [u8], rhs: &[u8]) -> &'a [u8] {
+            lhs.iter_mut().zip(rhs).for_each(|(x, y)| *x ^= y);
+            lhs
+        }
+
+        fn next_counter(&mut self) -> Vec<u8> {
+            let counter = self.counter.clone();
+            let mut rhs = 1;
+
+            for lhs in self.counter.iter_mut() {
+                let (new_lhs, overflow) = lhs.overflowing_add(rhs);
+                *lhs = new_lhs;
+                if !overflow { rhs = 0 }
+            }
+            counter
+        }
+
+        fn next_key(&mut self) -> Result<Vec<u8>, Error> {
+            let mut key = self.next_counter();
+            self.cipher.encrypt_block(&mut key)?;
+            Ok(key)
+        }
+    }
+
+    impl<C: Cipher> StreamCipherMode<C> for Ctr<C> {
+        fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
+            let keys = iter::repeat_with(|| self.next_key());
+            for (block, key) in buffer.chunks_mut(C::BLOCK_SIZE).zip(keys) {
+                Self::xor_inplace(block, &key?);
+            }
+            Ok(buffer)
+        }
+
+        fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
+            self.encrypt_inplace(buffer)
+        }
+    }
+
     #[cfg(test)]
     mod tests {
+        use std::convert::TryInto;
+
         use super::*;
         use crate::crypto::symmetric::padding_modes::Pkcs7;
         use crate::crypto::symmetric::ciphers::{Cipher, Aes128};
 
         type Aes128Ecb = Ecb<Aes128, Pkcs7>;
         type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+        type Aes128Ctr = Ctr<Aes128>;
 
         const RAW_KEY: [u8; Aes128::KEY_SIZE] = [
             0xc0, 0xfe, 0xfe, 0x00,
@@ -519,6 +601,14 @@ pub mod cipher_modes {
             0xfc, 0x8a, 0xc3, 0xca,
             0x6d, 0x08, 0x12, 0xb8,
             0x69, 0x90, 0x8f, 0xec
+        ];
+        
+        const CTR_CIPHERTEXT: [u8; 19] = [
+            0x30, 0x09, 0x66, 0x06, 
+            0x2d, 0x2c, 0x13, 0x55, 
+            0x5d, 0xf4, 0x75, 0xfc, 
+            0x9e, 0xa8, 0x22, 0xbe, 
+            0x4d, 0x87, 0x39
         ];
 
         #[test]
@@ -596,6 +686,58 @@ pub mod cipher_modes {
             let mut cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV).unwrap();
             
             let mut buffer = CBC_CIPHERTEXT.to_owned();
+            let result = cipher.decrypt_buffer(&mut buffer);
+            assert!(result.is_ok());
+            assert_eq!(&result.unwrap(), &PLAINTEXT);
+        }
+
+        #[test]
+        fn generate_counter() {
+            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV).unwrap();
+            for i in 0..256 {
+                let lhs = u128::from_le_bytes(
+                    cipher.next_counter()[..Aes128::BLOCK_SIZE].try_into().unwrap()
+                );
+                let rhs = u128::from_le_bytes(RAW_IV) + i;
+                assert_eq!(lhs, rhs);
+            }
+        }
+        
+        #[test]
+        fn encrypt_ctr_mode() {
+            let cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV);
+            
+            assert!(cipher.is_ok());
+            let mut cipher = cipher.unwrap();
+            
+            let mut buffer = PLAINTEXT.to_owned();
+            let result = cipher.encrypt_inplace(&mut buffer);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), CTR_CIPHERTEXT);
+
+            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV).unwrap();
+            
+            let buffer = PLAINTEXT.to_owned();
+            let result = cipher.encrypt_buffer(&buffer);
+            assert!(result.is_ok());
+            assert_eq!(&result.unwrap(), &CTR_CIPHERTEXT);
+        }
+        
+        #[test]
+        fn decrypt_ctr_mode() {
+            let cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV);
+            
+            assert!(cipher.is_ok());
+            let mut cipher = cipher.unwrap();
+            
+            let mut buffer = CTR_CIPHERTEXT.to_owned();
+            let result = cipher.decrypt_inplace(&mut buffer);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), PLAINTEXT);
+            
+            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV).unwrap();
+            
+            let mut buffer = CTR_CIPHERTEXT.to_owned();
             let result = cipher.decrypt_buffer(&mut buffer);
             assert!(result.is_ok());
             assert_eq!(&result.unwrap(), &PLAINTEXT);
