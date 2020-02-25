@@ -1,14 +1,18 @@
+//! This module implements vectors, matrices, and Gauss elimination over
+//! the two element field {0, 1}.
+
 use rand;
 use rand::Rng;
-use std::{fmt, ops};
+use std::{fmt, ops, convert};
 
 #[derive(Debug)]
 pub enum Error {
+    ConversionError,
     InconsistentSystemError,
     UnderDeterminedSystemError,
 }
 
-// Custom bit vector type.
+/// A custom bit vector type.
 #[derive(Clone, PartialEq)]
 pub struct Vector {
     pub dimension: usize,
@@ -16,12 +20,12 @@ pub struct Vector {
 }
 
 impl Vector {
-    // Returns a new vector of the given dimension.
+    /// Returns a new vector of the given dimension.
     pub fn new(dimension: usize) -> Self {
         Self::zeroes(dimension)
     }
 
-    // Returns a new vector (0, 0, ..., 0) of the given dimension.
+    /// Returns a new vector `(0, 0, ..., 0)` of the given dimension.
     pub fn zeroes(dimension: usize) -> Self {
         Self {
             dimension,
@@ -29,7 +33,7 @@ impl Vector {
         }
     }
 
-    // Returns a new vector (1, 1, ..., 1) of the given dimension.
+    /// Returns a new vector `(1, 1, ..., 1)` of the given dimension.
     pub fn ones(dimension: usize) -> Self {
         let mut result = Self {
             dimension,
@@ -43,6 +47,7 @@ impl Vector {
         result
     }
 
+    /// Returns a random vector of the given dimension.
     pub fn random(dimension: usize) -> Self {
         let mut result = Vector::zeroes(dimension);
         (0..dimension)
@@ -50,75 +55,23 @@ impl Vector {
             .for_each(|i| result.set_element(i, 1));
         result
     }
-
-    pub fn from_u128(value: u128) -> Self {
-        Self {
-            dimension: 128,
-            limbs: vec![(value & 0xffffffff_ffffffff) as u64, (value >> 64) as u64]
-        }
-    }
-
-    pub fn to_u128(&self) -> u128 {
-        assert!(self.dimension == 128);
-        ((self.limbs[1] as u128) << 64) ^ (self.limbs[0] as u128)
-    }
-
-    pub fn from_u64(value: u64) -> Self {
-        Self {
-            dimension: 64,
-            limbs: vec![value as u64]
-        }
-    }
-
-    pub fn to_u64(&self) -> u64 {
-        assert!(self.dimension == 64);
-        self.limbs[0]
-    }
     
-    pub fn from_u32(value: u32) -> Self {
-        Self {
-            dimension: 32,
-            limbs: vec![value as u64]
-        }
-    }
-    
-    pub fn to_u32(&self) -> u32 {
-        assert!(self.dimension == 32);
-        (self.limbs[0] & 0xffffffff) as u32
-    }
-    
-    pub fn from_u16(value: u16) -> Self {
-        Self {
-            dimension: 16,
-            limbs: vec![value as u64]
-        }
-    }
-    
-    pub fn to_u16(&self) -> u16 {
-        assert!(self.dimension == 16);
-        (self.limbs[0] & 0xffff) as u16
-    }
-    
-    pub fn from_u8(value: u8) -> Self {
-        Self {
-            dimension: 8,
-            limbs: vec![value as u64]
-        }
-    }
-    
-    pub fn to_u8(&self) -> u8 {
-        assert!(self.dimension == 8);
-        (self.limbs[0] & 0xff) as u8
-    }
-    
-    // Vector::get_element will panic if index is too large.
+    /// Gets the element at the given index.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `index` is larger than the dimension.
     #[inline]
     pub fn get_element(&self, index: usize) -> u8 {
         debug_assert!(index < self.dimension);
         ((self.limbs[index >> 6] >> (index & 63)) & 1) as u8
     }
 
-    // Vector::set_element will panic if index is too large.
+    /// Sets the element at the given index.
+    ///
+    /// # Panics
+    ///
+    /// Panics if either index is larger than the dimension.
     #[inline]
     pub fn set_element(&mut self, index: usize, value: u8) {
         debug_assert!(index < self.dimension);
@@ -127,6 +80,11 @@ impl Vector {
         self.limbs[index >> 6] = (self.limbs[index >> 6] & mask) ^ value;
     }
 
+    /// Swaps two elements of the vector.
+    ///
+    /// # Panics
+    ///
+    /// Panics if either index is larger than the dimension.
     #[inline]
     pub fn swap_elements(&mut self, first: usize, second: usize) {
         let first_element = self.get_element(first);
@@ -135,6 +93,11 @@ impl Vector {
         self.set_element(second, first_element);
     }
 
+    /// Adds the `value` to the element at the given `index`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `index` is larger than the dimension.
     pub fn add_to_element(&mut self, index: usize, value: u8) {
         self.set_element(index, self.get_element(index) ^ value);
     }
@@ -162,7 +125,136 @@ impl fmt::Display for Vector {
     }
 }
 
-// Implements v + w for vectors w and w.
+/// Converts an `u8` into an 8-bit vector.
+impl convert::From<u8> for Vector {
+    fn from(value: u8) -> Vector {
+        Self {
+            dimension: 8,
+            limbs: vec![value as u64]
+        }
+    }
+}
+
+/// Converts an `u16` into an 16-bit vector.
+impl convert::From<u16> for Vector {
+    fn from(value: u16) -> Vector {
+        Self {
+            dimension: 16,
+            limbs: vec![value as u64]
+        }
+    }
+}
+
+/// Converts an `u32` into an 32-bit vector.
+impl convert::From<u32> for Vector {
+    fn from(value: u32) -> Vector {
+        Self {
+            dimension: 32,
+            limbs: vec![value as u64]
+        }
+    }
+}
+
+/// Converts an `u64` into an 64-bit vector.
+impl convert::From<u64> for Vector {
+    fn from(value: u64) -> Vector {
+        Self {
+            dimension: 64,
+            limbs: vec![value]
+        }
+    }
+}
+
+/// Converts an `u128` into an 128-bit vector.
+impl convert::From<u128> for Vector {
+    fn from(value: u128) -> Vector {
+        Self {
+            dimension: 128,
+            limbs: vec![(value & 0xffffffff_ffffffff) as u64, (value >> 64) as u64]
+        }
+    }
+}
+
+/// Converts an 8-bit vector into an `u8`.
+///
+/// # Errors
+///
+/// Returns an error if `self.dimension != 8`.
+impl convert::TryInto<u8> for Vector {
+    type Error = Error;
+    fn try_into(self) -> Result<u8, Error> {
+        match self.dimension {
+            8 => Ok(self.limbs[0] as u8),
+            _ => Err(Error::ConversionError),
+        }
+    }
+}
+
+/// Converts a 16-bit vector into an `u16`.
+///
+/// # Errors
+///
+/// Returns an error if `self.dimension != 16`.
+impl convert::TryInto<u16> for Vector {
+    type Error = Error;
+    fn try_into(self) -> Result<u16, Error> {
+        match self.dimension {
+            16 => Ok(self.limbs[0] as u16),
+            _ => Err(Error::ConversionError),
+        }
+    }
+}
+
+/// Converts a 32-bit vector into an `u32`.
+///
+/// # Errors
+///
+/// Returns an error if `self.dimension != 32`.
+impl convert::TryInto<u32> for Vector {
+    type Error = Error;
+    fn try_into(self) -> Result<u32, Error> {
+        match self.dimension {
+            32 => Ok(self.limbs[0] as u32),
+            _ => Err(Error::ConversionError),
+        }
+    }
+}
+
+/// Converts a 64-bit vector into an `u64`.
+///
+/// # Errors
+///
+/// Returns an error if `self.dimension != 64`.
+impl convert::TryInto<u64> for Vector {
+    type Error = Error;
+    fn try_into(self) -> Result<u64, Error> {
+        match self.dimension {
+            64 => Ok(self.limbs[0]),
+            _ => Err(Error::ConversionError),
+        }
+    }
+}
+
+/// Converts a 128-bit vector into an `u128`.
+///
+/// # Errors
+///
+/// Returns an error if `self.dimension != 128`.
+impl convert::TryInto<u128> for Vector {
+    type Error = Error;
+    fn try_into(self) -> Result<u128, Error> {
+        match self.dimension {
+            128 => Ok((self.limbs[0] as u128) | ((self.limbs[1] as u128) << 64)),
+            _ => Err(Error::ConversionError),
+        }
+    }
+}
+
+/// Implements `v + w` for vectors `w` and `w`.
+///
+/// # Panics
+///
+/// The function will panic if `self.dimension != other.dimension`.
 impl ops::Add<Vector> for Vector {
     type Output = Vector;
 
@@ -175,7 +267,11 @@ impl ops::Add<Vector> for Vector {
     }
 }
 
-// Implements v + w for vectors w and w.
+/// Implements `v + w` for vector references `v` and `w`.
+///
+/// # Panics
+///
+/// The function will panic if `self.dimension != other.dimension`.
 impl ops::Add<&Vector> for &Vector {
     type Output = Vector;
 
@@ -188,7 +284,11 @@ impl ops::Add<&Vector> for &Vector {
     }
 }
 
-// Implements v += w for vectors w and w.
+/// Implements `v += w` for vectors `v` and `w`.
+///
+/// # Panics
+///
+/// The function will panic if `self.dimension != other.dimension`.
 impl ops::AddAssign<Vector> for Vector {
     fn add_assign(&mut self, other: Vector) {
         assert_eq!(self.dimension, other.dimension);
@@ -196,7 +296,11 @@ impl ops::AddAssign<Vector> for Vector {
     }
 }
 
-// Implements v += w for vectors w and w.
+/// Implements `v += w` for vectors `v` and `w`.
+///
+/// # Panics
+///
+/// The function will panic if `self.dimension != other.dimension`.
 impl ops::AddAssign<&Vector> for Vector {
     fn add_assign(&mut self, other: &Vector) {
         assert_eq!(self.dimension, other.dimension);
@@ -204,6 +308,7 @@ impl ops::AddAssign<&Vector> for Vector {
     }
 }
 
+/// A custom binary matrix type.
 #[derive(Clone, PartialEq)]
 pub struct Matrix {
     pub dimensions: (usize, usize),
@@ -211,11 +316,12 @@ pub struct Matrix {
 }
 
 impl Matrix {
-    // Returns a new matrix with the given dimensions.
+    /// Returns a new matrix with the given dimensions.
     pub fn new(rows: usize, columns: usize) -> Matrix {
         Matrix::zeroes(rows, columns)
     }
 
+    /// Returns a new matrix with the given dimensions where each element is 0.
     pub fn zeroes(rows: usize, columns: usize) -> Matrix {
         Matrix { 
             dimensions: (rows, columns),
@@ -223,6 +329,7 @@ impl Matrix {
         }
     }
     
+    /// Returns a new matrix with the given dimensions where each element is 1.
     pub fn ones(rows: usize, columns: usize) -> Matrix {
         Matrix { 
             dimensions: (rows, columns),
@@ -230,16 +337,19 @@ impl Matrix {
         }
     }
     
+    /// Returns a new diagonal matrix with the given dimensions.
     pub fn diagonal(dimension: usize) -> Matrix {
         let mut result = Matrix::zeroes(dimension, dimension);
         (0..dimension).for_each(|i| result.set_element(i, i, 1));
         result
     }
     
+    /// Returns a new diagonal matrix with the given dimensions.
     pub fn identity(dimension: usize) -> Matrix {
         Matrix::diagonal(dimension)
     }
     
+    /// Returns a new random matrix with the given dimensions.
     pub fn random(rows: usize, columns: usize) -> Matrix {
         Matrix { 
             dimensions: (rows, columns),
@@ -247,16 +357,29 @@ impl Matrix {
         }
     }
     
-    // Matrix::get_element will panic if either row or column is too large.
+    /// Gets the element at `(row, column)`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if either `row` or `column` is too large.
     pub fn get_element(&self, row: usize, column: usize) -> u8 {
         self.rows[row].get_element(column)
     }
 
-    // Matrix::set_element will panic if either row or column is too large.
+    /// Sets the element at `(row, column)`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if either `row` or `column` is too large.
     pub fn set_element(&mut self, row: usize, column: usize, value: u8) {
         self.rows[row].set_element(column, value);
     }
 
+    /// Adds the given `value` to the element at `(row, column)`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if either `row` or `column` is too large.
     pub fn add_to_element(&mut self, row: usize, column: usize, value: u8) {
         self.rows[row].add_to_element(column, value);
     }
@@ -269,10 +392,21 @@ impl Matrix {
         self.rows[row] = value;
     }
 
+
+    /// Swaps the two rows of the matrix.
+    ///
+    /// # Panics
+    ///
+    /// Panics if either index is too large.
     pub fn swap_rows(&mut self, first: usize, second: usize) {
         self.rows.swap(first, second);
     }
 
+    /// Adds the vector to the given row.
+    ///
+    /// # Panics
+    ///
+    /// Panics if row is too large, or if `self.dimensions.1 != value.dimension`.
     pub fn add_to_row(&mut self, row: usize, value: &Vector) {
         self.rows[row] += value;
     }
@@ -324,7 +458,11 @@ impl fmt::Display for Matrix {
     }
 }
 
-// Implements A + B for matrices A and B.
+/// Implements `A + B` for matrices `A` and `B`.
+///
+/// # Panics
+///
+/// Panics if `self.dimensions != other.dimensions`.
 impl ops::Add<Matrix> for Matrix {
     type Output = Matrix;
 
@@ -337,7 +475,11 @@ impl ops::Add<Matrix> for Matrix {
     }
 }
 
-// Implements A + B for matrices A and B.
+/// Implements `A + B` for matrix references `A` and `B`.
+///
+/// # Panics
+///
+/// Panics if `self.dimensions != other.dimensions`.
 impl ops::Add<&Matrix> for &Matrix {
     type Output = Matrix;
 
@@ -350,7 +492,11 @@ impl ops::Add<&Matrix> for &Matrix {
     }
 }
 
-// Implements A += B for matrices A and B.
+/// Implements `A += B` for matrices `A` and `B`.
+///
+/// # Panics
+///
+/// Panics if `self.dimensions != other.dimensions`.
 impl ops::AddAssign<Matrix> for Matrix {
     fn add_assign(&mut self, other: Matrix) {
         assert_eq!(self.dimensions, other.dimensions);
@@ -358,7 +504,11 @@ impl ops::AddAssign<Matrix> for Matrix {
     }
 }
 
-// Implements A += B for matrices A and B.
+/// Implements `A += B` for matrix `A` and matrix reference `B`.
+///
+/// # Panics
+///
+/// Panics if `self.dimensions != other.dimensions`.
 impl ops::AddAssign<&Matrix> for Matrix {
     fn add_assign(&mut self, other: &Matrix) {
         assert_eq!(self.dimensions, other.dimensions);
@@ -366,6 +516,7 @@ impl ops::AddAssign<&Matrix> for Matrix {
     }
 }
 
+/// Shifts each row down by rhs rows.
 impl ops::Shl<usize> for Matrix {
     type Output = Matrix;
 
@@ -384,6 +535,7 @@ impl ops::Shl<usize> for Matrix {
     }
 }
 
+/// Shifts each row down by `rhs` rows.
 impl ops::Shl<usize> for &Matrix {
     type Output = Matrix;
 
@@ -402,6 +554,7 @@ impl ops::Shl<usize> for &Matrix {
     }
 }
 
+/// Shifts each row down by `rhs` rows.
 impl ops::Shl<i32> for Matrix {
     type Output = Matrix;
 
@@ -410,6 +563,7 @@ impl ops::Shl<i32> for Matrix {
     }
 }
 
+/// Shifts each row down by `rhs` rows.
 impl ops::Shl<i32> for &Matrix {
     type Output = Matrix;
 
@@ -418,6 +572,7 @@ impl ops::Shl<i32> for &Matrix {
     }
 }
 
+/// Shifts each row down by `rhs` rows.
 impl ops::Shl<u32> for Matrix {
     type Output = Matrix;
 
@@ -426,6 +581,7 @@ impl ops::Shl<u32> for Matrix {
     }
 }
 
+/// Shifts each row down by `rhs` rows.
 impl ops::Shl<u32> for &Matrix {
     type Output = Matrix;
 
@@ -434,6 +590,7 @@ impl ops::Shl<u32> for &Matrix {
     }
 }
 
+/// Shifts each row up by `rhs` rows.
 impl ops::Shr<usize> for Matrix {
     type Output = Matrix;
 
@@ -452,6 +609,7 @@ impl ops::Shr<usize> for Matrix {
     }
 }
 
+/// Shifts each row up by `rhs` rows.
 impl ops::Shr<usize> for &Matrix {
     type Output = Matrix;
 
@@ -470,6 +628,7 @@ impl ops::Shr<usize> for &Matrix {
     }
 }
 
+/// Shifts each row up by `rhs` rows.
 impl ops::Shr<i32> for Matrix {
     type Output = Matrix;
 
@@ -478,6 +637,7 @@ impl ops::Shr<i32> for Matrix {
     }
 }
 
+/// Shifts each row up by `rhs` rows.
 impl ops::Shr<i32> for &Matrix {
     type Output = Matrix;
 
@@ -486,6 +646,7 @@ impl ops::Shr<i32> for &Matrix {
     }
 }
 
+/// Shifts each row up by `rhs` rows.
 impl ops::Shr<u32> for Matrix {
     type Output = Matrix;
 
@@ -494,6 +655,7 @@ impl ops::Shr<u32> for Matrix {
     }
 }
 
+/// Shifts each row up by `rhs` rows.
 impl ops::Shr<u32> for &Matrix {
     type Output = Matrix;
 
@@ -502,6 +664,10 @@ impl ops::Shr<u32> for &Matrix {
     }
 }
 
+/// Creates a new matrix where row `i` is given by
+///
+///   - row `i` of self if element `i` of `rhs` is 1,
+///   - `(0, 0, ..., 0)` otherwise.
 impl ops::BitAnd<Vector> for Matrix {
     type Output = Matrix;
 
@@ -522,12 +688,14 @@ impl ops::BitAnd<Vector> for Matrix {
     }
 }
 
+/// A linear equation solver implemented using Gauss elimination.
 pub struct GaussElimination {
     lhs: Matrix,
     rhs: Vector
 }
 
 impl GaussElimination {
+    /// Returns a new solver over the given matrix, with the given right-hand side.
     pub fn new(lhs: Matrix, rhs: Vector) -> Self {
         assert_eq!(lhs.dimensions.0, rhs.dimension);
         Self { lhs, rhs }
@@ -541,11 +709,11 @@ impl GaussElimination {
                 return Ok(())
             }
         }
-        println!("Underdetermined:");
-        println!("{:?}", self.lhs);
         Err(Error::UnderDeterminedSystemError)
     }
 
+    /// Solves the system and returns the unique solution, if it exists.
+    /// (The solver does not currently handle under-determined systems.)
     pub fn solve(&mut self) -> Result<Vector, Error> {
         for column in 0..self.lhs.dimensions.1 {
             self.pivot(column)?;
@@ -560,10 +728,10 @@ impl GaussElimination {
                 }
             }
         }
+        // Verify that the system is consistent in the case when
+        // the matrix lhs has more rows than columns.
         for row in self.lhs.dimensions.1..self.lhs.dimensions.0 {
             if self.rhs.get_element(row) != 0 {
-                println!("Inconsistent:");
-                println!("{:?}", self.lhs);
                 return Err(Error::InconsistentSystemError);
             }
         }
@@ -575,7 +743,8 @@ impl GaussElimination {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+    use std::convert::{From, TryInto};
+
     #[test]
     fn vector_creation() {
         let mut vector = Vector::new(123);
@@ -599,19 +768,24 @@ mod tests {
         }
     
         let vector = Vector::random(128);
-        assert_eq!(Vector::from_u128(vector.to_u128()), vector);
+        let value: u128 = vector.clone().try_into().unwrap();
+        assert_eq!(Vector::from(value), vector);
     
         let vector = Vector::random(64);
-        assert_eq!(Vector::from_u64(vector.to_u64()), vector);
+        let value: u64 = vector.clone().try_into().unwrap();
+        assert_eq!(Vector::from(value), vector);
     
         let vector = Vector::random(32);
-        assert_eq!(Vector::from_u32(vector.to_u32()), vector);
+        let value: u32 = vector.clone().try_into().unwrap();
+        assert_eq!(Vector::from(value), vector);
     
         let vector = Vector::random(16);
-        assert_eq!(Vector::from_u16(vector.to_u16()), vector);
+        let value: u16 = vector.clone().try_into().unwrap();
+        assert_eq!(Vector::from(value), vector);
     
         let vector = Vector::random(8);
-        assert_eq!(Vector::from_u8(vector.to_u8()), vector);
+        let value: u8 = vector.clone().try_into().unwrap();
+        assert_eq!(Vector::from(value), vector);
     }
 
     #[test]

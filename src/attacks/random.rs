@@ -1,4 +1,5 @@
 pub mod  mersenne_twister {
+    use std::convert::{From, TryInto};
     use std::time::{SystemTime, SystemTimeError};
 
     use crate::crypto::symmetric;
@@ -57,25 +58,25 @@ pub mod  mersenne_twister {
     }
 
     pub fn recover_state_from(output: u32) -> Result<u32, Error> {
-        let rhs = Vector::from_u32(output);
+        let rhs = Vector::from(output);
         let mut lhs = Matrix::diagonal(32);
         
         // x ^= x >> 11;
         lhs += &lhs >> 11;
 
         // x ^= (x << 7) & Mt19337::FIRST_MASK;
-        lhs += (&lhs << 7) & Vector::from_u32(FIRST_MASK);
+        lhs += (&lhs << 7) & Vector::from(FIRST_MASK);
         
         // x ^= (x << 15) & Mt19337::SECOND_MASK;
-        lhs += (&lhs << 15) & Vector::from_u32(SECOND_MASK);
+        lhs += (&lhs << 15) & Vector::from(SECOND_MASK);
         
         // x ^= x >> 18;
         lhs += &lhs >> 18;
         
         GaussElimination::new(lhs, rhs)
             .solve()
+            .and_then(|solution| solution.try_into())
             .map_err(Error::from)
-            .map(|solution| solution.to_u32())
     }
 
     pub fn recover_key_from(input: &[u8], output: &[u8]) -> Result<u16, Error> {
