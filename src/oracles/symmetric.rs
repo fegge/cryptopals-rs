@@ -119,7 +119,7 @@ pub mod simple_ecb_decryption {
             let random_size = if with_random_data { rand::thread_rng().gen_range(0, Aes128::BLOCK_SIZE) } else { 0 };
             let random_data: Vec<u8> = (0..random_size).map(|_| { rand::random() }).collect(); 
             let unknown_data = include_str!("../../data/set_2/problem_12.txt").replace("\n", "");
-            let unknown_data = base64::decode(&unknown_data).unwrap().to_owned();
+            let unknown_data = base64::decode(&unknown_data).unwrap();
             Ok(Oracle { cipher, random_data, unknown_data })
         }
         
@@ -233,8 +233,8 @@ pub mod ecb_cut_and_paste {
             let mut email = None;
             let mut uid = None;
             let mut role = None;
-            for param in param_str.split("&") {
-                let mut tokens = param.split("=");
+            for param in param_str.split('&') {
+                let mut tokens = param.split('=');
                 match (tokens.next(), tokens.next()) {
                     (Some("email"), Some(value)) => email = Some(value.to_owned()),
                     (Some("uid"), Some(value)) => uid = Some(value.parse()?),
@@ -242,8 +242,8 @@ pub mod ecb_cut_and_paste {
                     _ => return Err(Error::DecodingError)
                 };
             }
-            if email.is_some() && uid.is_some() && role.is_some() {
-                Ok(Profile { email: email.unwrap(), uid: uid.unwrap(), role: role.unwrap() })
+            if let (Some(email), Some(uid), Some(role)) = (email, uid, role) {
+                Ok(Profile { email, uid, role })
             } else {
                 Err(Error::DecodingError)
             }
@@ -314,14 +314,14 @@ pub mod cbc_bitflipping_attacks {
             // Note: We cannot use Cipher.decrypt_str here since that would
             // reject any buffer which didn't decode to valid UTF-8, which
             // in turn would prevent the attack we are trying to implement.
-            let target_buffer = "admin=true".as_bytes();
+            let target_buffer = b"admin=true";
             let param_buffer = self.cipher.decrypt_buffer(input_buffer)?;
             for param_slice in param_buffer.split(|&x| x as char == ';') {
                 if param_slice == target_buffer {
                     return Ok(true)
                 }
             }
-            return Ok(false)
+            Ok(false)
         }
     }
 }

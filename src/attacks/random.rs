@@ -51,10 +51,10 @@ pub mod  mersenne_twister {
 
     pub fn recover_timestamp_from(output: u32) -> Result<u64, Error> {
         let now = get_unix_time()?;
-        for delta in 0..(MAXIMUM_DELTA + 1) {
+        for delta in 0..=MAXIMUM_DELTA {
             if verify_u64_seed(now - delta, output) { return Ok(now - delta) }
         }
-        return Err(Error::RecoveryError)
+        Err(Error::RecoveryError)
     }
 
     pub fn recover_state_from(output: u32) -> Result<u32, Error> {

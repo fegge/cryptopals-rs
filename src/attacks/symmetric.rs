@@ -126,8 +126,7 @@ pub mod ecb_cut_and_paste {
             where Oracle : FnMut(&str) -> Result<Vec<u8>, Error> {
             let admin_bytes = get_profile_for(&get_admin_string())?
                 .chunks(Aes128::BLOCK_SIZE)
-                .skip(1)
-                .next()
+                .nth(1)
                 .ok_or(Error::CipherError)?
                 .to_owned();
             let mut profile_bytes: Vec<u8> = get_profile_for(&get_email_string())?;
@@ -243,7 +242,7 @@ pub mod cbc_bitflipping_attacks {
         let mut result = encrypt_buffer(&user_str)?;
         let offset = prefix_size - (prefix_size % Aes128::BLOCK_SIZE);
         for (index, byte) in target_str.as_bytes().iter().enumerate() {
-            result[offset + index] ^= ('A' as u8) ^ byte;
+            result[offset + index] ^= b'A' ^ byte;
         }
         Ok(result)
     }

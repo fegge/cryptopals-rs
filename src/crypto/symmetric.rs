@@ -1,6 +1,5 @@
 use std::string::FromUtf8Error;
 
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     DecodingError,
@@ -8,13 +7,11 @@ pub enum Error {
     CipherError,
 }
 
-
 impl From<FromUtf8Error> for Error {
     fn from(_: FromUtf8Error) -> Self {
         Error::DecodingError
     }
 }
-
 
 pub mod ciphers {
     use super::Error;
@@ -356,7 +353,6 @@ pub mod padding_modes {
         }
     }
 }
-
 
 pub mod cipher_modes {
     use std::iter;

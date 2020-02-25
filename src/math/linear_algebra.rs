@@ -43,7 +43,9 @@ impl Vector {
         // required to ensure that the derived implementation of 
         // the PartialEq trait does what it should.
         let mask = (1 << (dimension & 63)) - 1;
-        result.limbs.last_mut().map(|x| *x &= mask);
+        if let Some(x) = result.limbs.last_mut() {
+            *x &= mask;
+        }
         result
     }
 
@@ -257,7 +259,8 @@ impl convert::TryInto<u128> for Vector {
 /// The function will panic if `self.dimension != other.dimension`.
 impl ops::Add<Vector> for Vector {
     type Output = Vector;
-
+    
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn add(self, other: Vector) -> Vector {
         assert_eq!(self.dimension, other.dimension);
         Vector {
@@ -275,6 +278,7 @@ impl ops::Add<Vector> for Vector {
 impl ops::Add<&Vector> for &Vector {
     type Output = Vector;
 
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn add(self, other: &Vector) -> Vector {
         assert_eq!(self.dimension, other.dimension);
         Vector {
@@ -413,11 +417,11 @@ impl Matrix {
     
     fn get_left_delim(&self, row: usize) -> String {
         if row == 0 {
-            return String::from("/ ");
+            String::from("/ ")
         } else if row == self.dimensions.0 - 1 {
-            return String::from("\\ ");
+            String::from("\\ ")
         } else {
-            return String::from("| ");
+            String::from("| ")
         }
     }
 
