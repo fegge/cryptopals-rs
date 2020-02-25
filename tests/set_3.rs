@@ -27,7 +27,6 @@ mod set_3 {
             let seed = get_unix_time().unwrap();
             let output = Mt19337::new(seed as u32).next_u32();
             let result = recover_timestamp_from(output);
-            assert!(result.is_ok());
             assert_eq!(result.unwrap(), seed); 
         }
     }
