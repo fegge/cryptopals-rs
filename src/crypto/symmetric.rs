@@ -225,6 +225,12 @@ pub mod ciphers {
     }
 }
 
+pub use ciphers::{
+    Cipher, 
+    Aes128, 
+    Aes256
+};
+
 pub mod padding_modes {
     use super::Error;
 
@@ -354,6 +360,11 @@ pub mod padding_modes {
     }
 }
 
+pub use padding_modes::{
+    PaddingMode,
+    Pkcs7
+};
+
 pub mod cipher_modes {
     use std::iter;
     use super::Error;
@@ -361,6 +372,7 @@ pub mod cipher_modes {
     use super::padding_modes::PaddingMode;
     
     pub type Iv = [u8];
+    pub type Nonce = [u8];
 
     pub trait BlockCipherMode<C: Cipher, P: PaddingMode>: Sized {
         fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8], end: usize) -> Result<&'a [u8], Error>;
@@ -503,17 +515,19 @@ pub mod cipher_modes {
 
     pub struct Ctr<C: Cipher> {
         cipher: C,
-        counter: Vec<u8>
+        nonce: Vec<u8>,
+        counter: Vec<u8>,
     }
 
     impl<C: Cipher> Ctr<C> {
-        pub fn new(key: &Key, iv: &Iv) -> Result<Self, Error> {
-            if iv.len() != C::BLOCK_SIZE {
+        pub fn new(key: &Key, nonce: &Nonce) -> Result<Self, Error> {
+            if nonce.len() != C::BLOCK_SIZE / 2 {
                 return Err(Error::CipherError)
             }
             Ok(Self { 
                 cipher: C::new(&key)?,
-                counter: iv.to_owned(),
+                nonce: nonce.to_owned(),
+                counter: vec![0; C::BLOCK_SIZE / 2]
             })
         }
         
@@ -523,13 +537,12 @@ pub mod cipher_modes {
         }
 
         fn next_counter(&mut self) -> Vec<u8> {
-            let counter = self.counter.clone();
-            let mut rhs = 1;
-
-            for lhs in self.counter.iter_mut() {
-                let (new_lhs, overflow) = lhs.overflowing_add(rhs);
-                *lhs = new_lhs;
-                if !overflow { rhs = 0 }
+            let counter = [&self.nonce.clone()[..], &self.counter.clone()[..]]
+                .concat();
+            for i in 0..self.counter.len() {
+                let (result, overflow) = self.counter[i].overflowing_add(1);
+                self.counter[i] = result;
+                if !overflow { break }
             }
             counter
         }
@@ -581,6 +594,11 @@ pub mod cipher_modes {
             0xc0, 0xfe, 0xfe, 0x03,
         ];
         
+        const RAW_NONCE: [u8; Aes128::BLOCK_SIZE / 2] = [
+            0xc0, 0xfe, 0xfe, 0x00,
+            0xc0, 0xfe, 0xfe, 0x01,
+        ];
+        
         const PLAINTEXT: [u8; 19] = [
             0xc0, 0xfe, 0xfe, 0x00,
             0xc0, 0xfe, 0xfe, 0x01,
@@ -612,13 +630,13 @@ pub mod cipher_modes {
         ];
         
         const CTR_CIPHERTEXT: [u8; 19] = [
-            0x30, 0x09, 0x66, 0x06, 
-            0x2d, 0x2c, 0x13, 0x55, 
-            0x5d, 0xf4, 0x75, 0xfc, 
-            0x9e, 0xa8, 0x22, 0xbe, 
-            0x4d, 0x87, 0x39
+            0x0b, 0xb2, 0x54, 0x7f,
+            0xd6, 0xdc, 0xa2, 0xcf,
+            0xb6, 0x2d, 0xb0, 0xca,
+            0x74, 0xa9, 0x5a, 0xed,
+            0xde, 0x08, 0xd4,
         ];
-
+ 
         #[test]
         fn encrypt_ecb_mode() {
             let mut cipher = Aes128Ecb::new(&RAW_KEY).unwrap();
@@ -675,24 +693,22 @@ pub mod cipher_modes {
 
         #[test]
         fn generate_counter() {
-            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV).unwrap();
-            for i in 0..256 {
-                let lhs = u128::from_le_bytes(
-                    cipher.next_counter()[..Aes128::BLOCK_SIZE].try_into().unwrap()
-                );
-                let rhs = u128::from_le_bytes(RAW_IV) + i;
-                assert_eq!(lhs, rhs);
+            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
+            for i in 0..=256 {
+                let counter = cipher.next_counter();
+                assert_eq!(&counter[..8], &RAW_NONCE);
+                assert_eq!(u64::from_le_bytes(counter[8..].try_into().unwrap()), i as u64);
             }
         }
         
         #[test]
         fn encrypt_ctr_mode() {
-            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV).unwrap();
+            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
             let mut buffer = PLAINTEXT.to_owned();
             let result = cipher.encrypt_inplace(&mut buffer);
             assert_eq!(result.unwrap(), CTR_CIPHERTEXT);
 
-            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV).unwrap();
+            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
             let buffer = PLAINTEXT.to_owned();
             let result = cipher.encrypt_buffer(&buffer);
             assert_eq!(&result.unwrap(), &CTR_CIPHERTEXT);
@@ -700,12 +716,12 @@ pub mod cipher_modes {
         
         #[test]
         fn decrypt_ctr_mode() {
-            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV).unwrap();
+            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
             let mut buffer = CTR_CIPHERTEXT.to_owned();
             let result = cipher.decrypt_inplace(&mut buffer);
             assert_eq!(result.unwrap(), PLAINTEXT);
             
-            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_IV).unwrap();
+            let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
             let buffer = CTR_CIPHERTEXT.to_owned();
             let result = cipher.decrypt_buffer(&buffer);
             assert_eq!(&result.unwrap(), &PLAINTEXT);
@@ -713,3 +729,19 @@ pub mod cipher_modes {
     }
 }
 
+pub use cipher_modes::{
+    BlockCipherMode,
+    StreamCipherMode,
+    Ecb,
+    Cbc,
+    Ctr
+};
+
+pub type Aes128Ecb = Ecb<Aes128, Pkcs7>;
+pub type Aes256Ecb = Ecb<Aes256, Pkcs7>;
+
+pub type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+pub type Aes256Cbc = Cbc<Aes256, Pkcs7>;
+
+pub type Aes128Ctr = Ctr<Aes128>;
+pub type Aes256Ctr = Ctr<Aes256>;

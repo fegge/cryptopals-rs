@@ -18,13 +18,10 @@ mod set_2 {
 
     mod problem_10 {
         use base64;
-        use cryptopals::crypto;
-        
-        use crypto::symmetric::padding_modes::Pkcs7;
-        use crypto::symmetric::cipher_modes::{BlockCipherMode, Cbc};
-        use crypto::symmetric::ciphers::{Cipher, Aes128};
-
-        type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+        use cryptopals::crypto::symmetric::{
+            BlockCipherMode, Aes128Cbc, 
+            Cipher, Aes128
+        };
         
         #[test]
         fn solution() {
@@ -38,9 +35,6 @@ mod set_2 {
            // This decodes the plaintext as UTF-8.
            let result = cipher.decrypt_str(&buffer);
            assert!(result.is_ok()); 
-            
-           // Prints the lyrics for 'Play that funky music'.
-           // println!("{}", result.unwrap());
        }
     }
 
@@ -109,9 +103,10 @@ mod set_2 {
     }
 
     mod problem_15 {
-        use cryptopals::crypto;
-        use crypto::symmetric::ciphers::{Cipher, Aes128};
-        use crypto::symmetric::padding_modes::{PaddingMode, Pkcs7};
+        use cryptopals::crypto::symmetric::{
+            PaddingMode, Pkcs7,
+            Cipher, Aes128
+        };
 
         #[test]
         fn solution() {
@@ -129,8 +124,9 @@ mod set_2 {
     }
 
     mod problem_16 {
-        use cryptopals::oracles::symmetric::cbc_bitflipping_attacks::Oracle;
-        use cryptopals::attacks::symmetric::cbc_bitflipping_attacks::get_admin_profile;
+        use cryptopals::{oracles, attacks};
+        use oracles::symmetric::cbc_bitflipping_attacks::Oracle;
+        use attacks::symmetric::cbc_bitflipping_attacks::get_admin_profile;
     
         #[test]
         fn solution() {
