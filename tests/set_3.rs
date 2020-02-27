@@ -1,5 +1,23 @@
 mod set_3 {
 
+    mod problem_18 {
+        use base64;
+        
+        use cryptopals::crypto::symmetric::{Aes128Ctr, StreamCipherMode};
+
+        const INPUT: &str = "L77na/nrFsKvynd6HzOoG7GHTLXsTVu9qvY/2syLXzhPweyyMTJULu/6/kXX0KSvoOLSFQ==";
+
+        #[test]
+        fn solution() {
+            let mut cipher = Aes128Ctr::new(b"YELLOW SUBMARINE", &[0; 8]).unwrap();
+            let input = base64::decode(INPUT).unwrap().to_owned();
+            
+            // This decodes the plaintext as UTF-8.
+            let result = cipher.decrypt_str(&input);
+            assert!(result.is_ok());
+        }
+    }
+
     mod problem_22 {
         use rand;
         use rand::Rng;
