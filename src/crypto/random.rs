@@ -22,6 +22,10 @@ pub trait SeedableGenerator: RandomGenerator {
 }
 
 impl<G, S> StreamCipherMode for G where G: SeedableGenerator<Seed = S> {
+    fn random() -> Result<Self, symmetric::Error> {
+        Ok(Self::random())
+    }
+    
     fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], symmetric::Error> {
         buffer.iter_mut().for_each(|x| *x ^= self.next_u8());
         Ok(buffer)

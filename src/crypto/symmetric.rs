@@ -366,6 +366,8 @@ pub use padding_modes::{
 };
 
 pub mod cipher_modes {
+    use rand;
+
     use std::iter;
     use super::Error;
     use super::ciphers::{Cipher, Key};
@@ -375,6 +377,8 @@ pub mod cipher_modes {
     pub type Nonce = [u8];
 
     pub trait BlockCipherMode<C: Cipher, P: PaddingMode>: Sized {
+        fn random() -> Result<Self, Error>;
+        
         fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8], end: usize) -> Result<&'a [u8], Error>;
 
         fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error>;
@@ -406,6 +410,8 @@ pub mod cipher_modes {
     }
     
     pub trait StreamCipherMode: Sized {
+        fn random() -> Result<Self, Error>;
+
         fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
 
         fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
@@ -447,6 +453,11 @@ pub mod cipher_modes {
     }
 
     impl<C: Cipher, P: PaddingMode> BlockCipherMode<C, P> for Ecb<C, P> {
+        fn random() -> Result<Self, Error> {
+            let key: Vec<u8> = (0..C::KEY_SIZE).map(|_| { rand::random() }).collect();
+            Self::new(&key)
+        }
+
         fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
             assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
             self.padding.pad_inplace(buffer, size)?;
@@ -490,6 +501,12 @@ pub mod cipher_modes {
     }
 
     impl<C: Cipher, P: PaddingMode> BlockCipherMode<C, P> for Cbc<C, P> {
+        fn random() -> Result<Self, Error> {
+            let key: Vec<u8> = (0..C::KEY_SIZE).map(|_| { rand::random() }).collect();
+            let iv: Vec<u8> = (0..C::BLOCK_SIZE).map(|_| { rand::random() }).collect();
+            Self::new(&key, &iv)
+        }
+        
         fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
             assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
             self.padding.pad_inplace(buffer, size)?;
@@ -555,6 +572,12 @@ pub mod cipher_modes {
     }
 
     impl<C: Cipher> StreamCipherMode for Ctr<C> {
+        fn random() -> Result<Self, Error> {
+            let key: Vec<u8> = (0..C::KEY_SIZE).map(|_| { rand::random() }).collect();
+            let nonce: Vec<u8> = (0..(C::BLOCK_SIZE / 2)).map(|_| { rand::random() }).collect();
+            Self::new(&key, &nonce)
+        }
+        
         fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
             let keys = iter::repeat_with(|| self.next_key());
             for (block, key) in buffer.chunks_mut(C::BLOCK_SIZE).zip(keys) {

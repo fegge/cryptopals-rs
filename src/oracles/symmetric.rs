@@ -2,15 +2,16 @@ pub mod ecb_cbc_detection {
     use rand;
     use rand::Rng;
 
-    use crate::crypto::symmetric;
-
-    use symmetric::padding_modes::{PaddingMode, Pkcs7};
-    use symmetric::cipher_modes::{BlockCipherMode, Ecb, Cbc};
-    use symmetric::ciphers::{Cipher, Aes128};
-    use symmetric::Error;
-
-    type Aes128Ecb = Ecb<Aes128, Pkcs7>;
-    type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+    use crate::crypto::symmetric::{
+        BlockCipherMode,
+        PaddingMode,
+        Aes128Ecb,
+        Aes128Cbc,
+        Cipher,
+        Aes128,
+        Pkcs7,
+        Error,
+    };
 
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum Mode {
@@ -96,14 +97,15 @@ pub mod simple_ecb_decryption {
     use rand;
     use rand::Rng;
 
-    use crate::crypto::symmetric;
-
-    use symmetric::padding_modes::{PaddingMode, Pkcs7};
-    use symmetric::cipher_modes::{BlockCipherMode, Ecb};
-    use symmetric::ciphers::{Cipher, Aes128};
-    use symmetric::Error;
-
-    type Aes128Ecb = Ecb<Aes128, Pkcs7>;
+    use crate::crypto::symmetric::{
+        BlockCipherMode,
+        PaddingMode,
+        Aes128Ecb,
+        Cipher,
+        Aes128,
+        Pkcs7,
+        Error,
+    };
 
     pub struct Oracle {
         cipher: Aes128Ecb,
@@ -154,15 +156,10 @@ pub mod simple_ecb_decryption {
 
 
 pub mod ecb_cut_and_paste {
-    use rand;
     use std::str::FromStr;
     
     use crate::crypto::symmetric;
-    use symmetric::ciphers::{Cipher, Aes128};
-    use symmetric::padding_modes::Pkcs7;
-    use symmetric::cipher_modes::{BlockCipherMode, Ecb};
-
-    type Aes128Ecb = Ecb<Aes128, Pkcs7>;
+    use symmetric::{BlockCipherMode, Aes128Ecb};
 
     #[derive(Debug)]
     pub enum Error {
@@ -255,10 +252,8 @@ pub mod ecb_cut_and_paste {
     }
 
     impl Oracle {
-        pub fn new() -> Result<Self, Error> {
-            let key: Vec<u8> = (0..Aes128::KEY_SIZE).map(|_| { rand::random() }).collect();
-            let cipher = Aes128Ecb::new(&key)?;
-            Ok(Oracle { cipher })
+        pub fn random() -> Result<Self, Error> {
+            Ok(Oracle { cipher: Aes128Ecb::random()? })
         }
 
         pub fn get_profile_for(&mut self, email: &str) -> Result<Vec<u8>, Error> {
@@ -276,25 +271,19 @@ pub mod ecb_cut_and_paste {
 }
 
 pub mod cbc_bitflipping_attacks {
-    use crate::crypto::symmetric;
-   
-    use symmetric::Error;
-    use symmetric::ciphers::{Cipher, Aes128};
-    use symmetric::padding_modes::Pkcs7;
-    use symmetric::cipher_modes::{BlockCipherMode, Cbc};
-
-    type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+    use crate::crypto::symmetric::{
+        BlockCipherMode,
+        Aes128Cbc,
+        Error,
+    };
    
     pub struct Oracle {
         cipher: Aes128Cbc
     }
 
     impl Oracle {
-        pub fn new() -> Result<Self, Error> {
-            let key: Vec<u8> = (0..Aes128::KEY_SIZE).map(|_| { rand::random() }).collect();
-            let iv: Vec<u8> = (0..Aes128::BLOCK_SIZE).map(|_| { rand::random() }).collect();
-            let cipher = Aes128Cbc::new(&key, &iv)?;
-            Ok(Oracle { cipher })
+        pub fn random() -> Result<Self, Error> {
+            Ok(Oracle { cipher: Aes128Cbc::random()? })
         }
 
         pub fn encrypt_user_data(&mut self, user_data: &str) -> Result<Vec<u8>, Error> {
@@ -322,6 +311,51 @@ pub mod cbc_bitflipping_attacks {
                 }
             }
             Ok(false)
+        }
+    }
+
+    pub mod cbc_padding_oracle {
+        use crate::crypto::symmetric::{
+            BlockCipherMode,
+            Aes128Cbc,
+            Error,
+        };
+
+        pub struct Oracle {
+            cipher: Aes128Cbc
+        }
+
+        impl Oracle {
+            pub fn random() -> Result<Self, Error> {
+                Ok(Oracle { cipher: Aes128Cbc::random()? })
+            }
+
+            pub fn encrypt_user_data(&mut self, user_data: &str) -> Result<Vec<u8>, Error> {
+                let comment_1 = "comment1=cooking%20MCs";
+                let comment_2 = "comment2=%20like%20a%20pound%20of%20bacon"; 
+
+                let param_str = format!(
+                    "{};userdata={};{}",
+                    comment_1,
+                    user_data.replace(";", "%3B").replace("=", "%3D"),
+                    comment_2
+                    );
+                self.cipher.encrypt_str(&param_str)
+            }
+
+            pub fn is_admin_user(&mut self, input_buffer: &[u8]) -> Result<bool, Error> {
+                // Note: We cannot use Cipher.decrypt_str here since that would
+                // reject any buffer which didn't decode to valid UTF-8, which
+                // in turn would prevent the attack we are trying to implement.
+                let target_buffer = b"admin=true";
+                let param_buffer = self.cipher.decrypt_buffer(input_buffer)?;
+                for param_slice in param_buffer.split(|&x| x as char == ';') {
+                    if param_slice == target_buffer {
+                        return Ok(true)
+                    }
+                }
+                Ok(false)
+            }
         }
     }
 }
