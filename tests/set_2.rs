@@ -77,7 +77,7 @@ mod set_2 {
 
         #[test]
         fn solution() {
-            let mut oracle = Oracle::new().unwrap();
+            let mut oracle = Oracle::random().unwrap();
             let profile = get_admin_profile(|email| oracle.get_profile_for(email)).unwrap();
             
             assert_eq!(oracle.get_role_from(&profile).unwrap(), Role::Admin);
@@ -130,7 +130,7 @@ mod set_2 {
     
         #[test]
         fn solution() {
-            let mut oracle = Oracle::new().unwrap();
+            let mut oracle = Oracle::random().unwrap();
             // We assume that we know the size of the prefix. Alternatively, we could 
             // guess the size of the prefix and query the oracle once for verification.
             let comment_1 = "comment1=cooking%20MCs";
