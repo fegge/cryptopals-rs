@@ -182,6 +182,7 @@ pub mod harder_ecb_decryption {
                 for i in 0 .. blocks.len() - 1 {
                     if blocks[i] == blocks[i + 1] {
                         let padding_size = known_size % block_size;
+                        // TODO: This can panic if padding_size > i * block_size.
                         return Ok(i * block_size - padding_size);
                     }
                 }
@@ -245,5 +246,105 @@ pub mod cbc_bitflipping_attacks {
             result[offset + index] ^= b'A' ^ byte;
         }
         Ok(result)
+    }
+}
+
+pub mod cbc_padding_oracle {
+    use std::collections::VecDeque;
+    use crate::crypto::symmetric;
+    use symmetric::{
+        PaddingMode,
+        Cipher,
+        Aes128,
+        Pkcs7
+    };
+
+    #[derive(Debug)]
+    pub enum Error {
+        CipherError,
+        RecoveryError,
+    }
+
+    impl From<symmetric::Error> for Error {
+        fn from(_: symmetric::Error) -> Error {
+            Error::CipherError
+        }
+    }
+    
+    fn edit_encrypted_buffer(
+        encrypted_buffer: &[u8],
+        plaintext_buffer: &VecDeque<u8>,
+    ) -> Vec<u8> {
+        assert!(Aes128::BLOCK_SIZE + plaintext_buffer.len() <= encrypted_buffer.len());
+        let first_index = 
+            encrypted_buffer.len() - plaintext_buffer.len() - Aes128::BLOCK_SIZE;
+        let last_index =
+            first_index + Aes128::BLOCK_SIZE - (first_index % Aes128::BLOCK_SIZE);
+        
+        let padding_byte = if (plaintext_buffer.len() % Aes128::BLOCK_SIZE) > 0 {
+            (plaintext_buffer.len() % Aes128::BLOCK_SIZE) as u8
+        }
+        else {
+            Aes128::BLOCK_SIZE as u8
+        };
+        let mut edited_buffer = encrypted_buffer.to_owned();
+        edited_buffer.truncate(last_index + Aes128::BLOCK_SIZE);
+        for index in 0..(last_index - first_index) {
+            edited_buffer[first_index + index] ^= plaintext_buffer[index] ^ padding_byte;
+        }
+        edited_buffer
+    }
+
+    /// This function takes an `encrypted_buffer` on the form IV || ciphertext, together with a
+    /// padding oracle `verify_padding`. To recover the plaintext we guess the last plaintext byte `g0`
+    /// and then xor the last ciphertext byte in the penultimate block with `g0 ^ 1`.
+    /// Given that our initial guess `g0` was correct, this should give us the padding [1]. 
+    ///
+    /// We now go on and guess the previous plaintext byte `g1` and xor the penultimate ciphertext
+    /// block with [g1 ^ 2, g0 ^ 2]. If `g1` is correct this yields the padding bytes [2, 2].
+    /// Continuing in this way, we can recover the entire plaintext.
+    pub fn get_plaintext_buffer<Oracle>(
+        encrypted_buffer: &[u8],
+        verify_padding: &mut Oracle
+    ) -> Result<Vec<u8>, Error> where
+        Oracle: FnMut(&[u8]) -> bool
+    {
+        let mut partial_solutions = VecDeque::new();
+        partial_solutions.push_back(VecDeque::<u8>::new());
+        
+        while let Some(mut partial_solution) = partial_solutions.pop_front() {
+            if Aes128::BLOCK_SIZE + partial_solution.len() == encrypted_buffer.len() {
+                // The entire plaintext has been recovered.
+                partial_solutions.push_back(partial_solution);
+                break;
+            }
+            partial_solution.push_front(0x00);
+            loop {
+                let edited_buffer = edit_encrypted_buffer(
+                    &encrypted_buffer,
+                    &partial_solution,
+                );
+                if verify_padding(&edited_buffer) {
+                    partial_solutions.push_back(partial_solution.clone());
+                }
+
+                if partial_solution[0] == 0xff { 
+                    break;
+                } else {
+                    partial_solution[0] += 1;
+                }
+            }
+        }
+        assert!(partial_solutions.len() == 1);
+        let mut solution: Vec<u8> = partial_solutions
+            .pop_front()
+            .unwrap()
+            .into();
+
+        let pkcs7 = Pkcs7::new(Aes128::BLOCK_SIZE);
+        let length = pkcs7.unpad_inplace(&solution)?;
+        
+        solution.truncate(length);
+        Ok(solution)
     }
 }

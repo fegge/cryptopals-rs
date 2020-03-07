@@ -271,7 +271,7 @@ pub mod padding_modes {
         }
 
         fn validate_padding(buffer: &[u8], padding_size: usize) -> bool {
-            padding_size <= buffer.len() && buffer
+            0 < padding_size && padding_size <= buffer.len() && buffer
                 .iter()
                 .rev()
                 .take(padding_size)
@@ -349,12 +349,15 @@ pub mod padding_modes {
         #[test]
         fn invalid_padding() {
             let pkcs7 = Pkcs7::new(8);
-            let mut buffer: [u8; 4] = [4, 5, 6, 7];
+            let mut buffer: [u8; 4] = [1, 2, 3, 4];
             
             let result = pkcs7.pad_inplace(&mut buffer, 4);
             assert!(result.is_err());
 
             let result = pkcs7.unpad_inplace(&mut buffer);
+            assert!(result.is_err());
+
+            let result = pkcs7.unpad_inplace(&mut [3, 2, 1, 0]);
             assert!(result.is_err());
         }
     }

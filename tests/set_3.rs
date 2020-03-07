@@ -1,5 +1,24 @@
 mod set_3 {
 
+    mod problem_17 {
+        use cryptopals::{oracles, attacks};
+        use oracles::symmetric::cbc_padding_oracle::Oracle;
+        use attacks::symmetric::cbc_padding_oracle::get_plaintext_buffer;
+
+        #[test]
+        fn solution() {
+            let mut oracle = Oracle::random().unwrap();
+            let buffer = oracle.get_encrypted_buffer().unwrap();
+            let result = get_plaintext_buffer(
+                &buffer,
+                &mut |buffer| oracle.verify_padding(buffer)
+            );
+
+            // Check that the result is correct by attempting to decode the buffer as UTF-8.
+            println!("{}", String::from_utf8(result.unwrap()).unwrap());
+        }
+    }
+
     mod problem_18 {
         use base64;
         

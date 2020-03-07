@@ -313,49 +313,56 @@ pub mod cbc_bitflipping_attacks {
             Ok(false)
         }
     }
+}
 
-    pub mod cbc_padding_oracle {
-        use crate::crypto::symmetric::{
-            BlockCipherMode,
-            Aes128Cbc,
-            Error,
-        };
+pub mod cbc_padding_oracle {
+    use crate::crypto::symmetric::{
+        BlockCipherMode,
+        Aes128Cbc,
+        Aes128,
+        Cipher,
+        Error,
+    };
+    
+    use base64;
+    use rand;
+    use rand::seq::SliceRandom;
 
-        pub struct Oracle {
-            cipher: Aes128Cbc
+    pub struct Oracle {
+        cipher: Aes128Cbc,
+        iv: Vec<u8>,
+    }
+
+    impl Oracle {
+        pub fn random() -> Result<Self, Error> {
+            let key: Vec<u8> = (0..Aes128::KEY_SIZE).map(|_| { rand::random() }).collect();
+            let iv: Vec<u8> = (0..Aes128::BLOCK_SIZE).map(|_| { rand::random() }).collect();
+            
+            Ok(Oracle { cipher: Aes128Cbc::new(&key, &iv)?, iv })
         }
 
-        impl Oracle {
-            pub fn random() -> Result<Self, Error> {
-                Ok(Oracle { cipher: Aes128Cbc::random()? })
-            }
+        /// This method encrypts a random string with a random key and IV, and returns the
+        /// encrypted buffer prefixed by the IV. (This is just for convenience since we need
+        /// to concatenate the two buffers before we start the attack anyway.)
+        pub fn get_encrypted_buffer(&mut self) -> Result<Vec<u8>, Error> {
+            // It is safe to call unwrap here since the file is non-empty.
+            let random_str = include_str!("../../data/set_3/problem_17.txt")
+                .split('\n')
+                .collect::<Vec<&str>>()
+                .choose(&mut rand::thread_rng())
+                .unwrap()
+                .to_owned();
+            let random_buffer = base64::decode(random_str)
+                .unwrap();
 
-            pub fn encrypt_user_data(&mut self, user_data: &str) -> Result<Vec<u8>, Error> {
-                let comment_1 = "comment1=cooking%20MCs";
-                let comment_2 = "comment2=%20like%20a%20pound%20of%20bacon"; 
+            self.cipher
+                .encrypt_buffer(&random_buffer)
+                .map(|buffer| [&self.iv[..], &buffer[..]].concat())
+        }
 
-                let param_str = format!(
-                    "{};userdata={};{}",
-                    comment_1,
-                    user_data.replace(";", "%3B").replace("=", "%3D"),
-                    comment_2
-                    );
-                self.cipher.encrypt_str(&param_str)
-            }
-
-            pub fn is_admin_user(&mut self, input_buffer: &[u8]) -> Result<bool, Error> {
-                // Note: We cannot use Cipher.decrypt_str here since that would
-                // reject any buffer which didn't decode to valid UTF-8, which
-                // in turn would prevent the attack we are trying to implement.
-                let target_buffer = b"admin=true";
-                let param_buffer = self.cipher.decrypt_buffer(input_buffer)?;
-                for param_slice in param_buffer.split(|&x| x as char == ';') {
-                    if param_slice == target_buffer {
-                        return Ok(true)
-                    }
-                }
-                Ok(false)
-            }
+        pub fn verify_padding(&mut self, buffer: &[u8]) -> bool {
+            // The only error returned by Aes128Cbc::decrypt_buffer is Error::PaddingError.
+            self.cipher.decrypt_buffer(buffer).is_ok()
         }
     }
 }
