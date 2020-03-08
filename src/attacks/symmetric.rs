@@ -280,29 +280,20 @@ pub mod cbc_padding_oracle {
             encrypted_buffer.len() - plaintext_buffer.len() - Aes128::BLOCK_SIZE;
         let last_index =
             first_index + Aes128::BLOCK_SIZE - (first_index % Aes128::BLOCK_SIZE);
-        
-        let padding_byte = if (plaintext_buffer.len() % Aes128::BLOCK_SIZE) > 0 {
-            (plaintext_buffer.len() % Aes128::BLOCK_SIZE) as u8
-        }
-        else {
-            Aes128::BLOCK_SIZE as u8
-        };
+       
+        let padding_length = last_index - first_index;
         let mut edited_buffer = encrypted_buffer.to_owned();
         edited_buffer.truncate(last_index + Aes128::BLOCK_SIZE);
-        for index in 0..(last_index - first_index) {
-            edited_buffer[first_index + index] ^= plaintext_buffer[index] ^ padding_byte;
+        for index in 0..padding_length {
+            edited_buffer[first_index + index] ^= 
+                plaintext_buffer[index] ^ (padding_length as u8);
         }
         edited_buffer
     }
 
-    /// This function takes an `encrypted_buffer` on the form IV || ciphertext, together with a
-    /// padding oracle `verify_padding`. To recover the plaintext we guess the last plaintext byte `g0`
-    /// and then xor the last ciphertext byte in the penultimate block with `g0 ^ 1`.
-    /// Given that our initial guess `g0` was correct, this should give us the padding [1]. 
-    ///
-    /// We now go on and guess the previous plaintext byte `g1` and xor the penultimate ciphertext
-    /// block with [g1 ^ 2, g0 ^ 2]. If `g1` is correct this yields the padding bytes [2, 2].
-    /// Continuing in this way, we can recover the entire plaintext.
+    /// This function implements a classic CBC padding oracle attack. It takes an `encrypted_buffer`
+    /// on the form IV || ciphertext (an IV concatenated with the corresponding ciphertext), 
+    /// together with a padding oracle `verify_padding` of type `FnMut(&[u8]) -> bool`. 
     pub fn get_plaintext_buffer<Oracle>(
         encrypted_buffer: &[u8],
         verify_padding: &mut Oracle
