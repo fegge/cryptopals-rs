@@ -15,7 +15,7 @@ mod set_3 {
             );
 
             // Check that the result is correct by attempting to decode the buffer as UTF-8.
-            println!("{}", String::from_utf8(result.unwrap()).unwrap());
+            assert!(String::from_utf8(result.unwrap()).is_ok());
         }
     }
 
