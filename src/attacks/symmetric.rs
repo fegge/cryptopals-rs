@@ -310,6 +310,7 @@ pub mod cbc_padding_oracle {
                 partial_solutions.push_back(partial_solution);
                 break;
             }
+            // Attempt to extend the partial solution.
             partial_solution.push_front(0x00);
             loop {
                 let edited_buffer = edit_encrypted_buffer(
