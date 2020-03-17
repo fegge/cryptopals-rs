@@ -5,6 +5,7 @@ authors = ["Fredrik Dahlgren"]
 edition = "2018"
 
 [dependencies]
+hex = "0.4"
 libc = "0.2"
 rand = "0.7"
 base64 = "0.10"
