@@ -1,3 +1,5 @@
+//! This module contains attacks against symmetric primitives.
+
 pub mod ecb_cbc_detection {
     use crate::{crypto, oracles};
 
@@ -5,8 +7,8 @@ pub mod ecb_cbc_detection {
     use crypto::symmetric::ciphers::{Cipher, Aes128};
     use oracles::symmetric::ecb_cbc_detection::Mode;
    
-    // By encrypting mutiple identical blocks, we can detect ECB mode
-    // since the corresponding ciphertext blocks will also be identical.
+    /// By encrypting mutiple identical blocks, we can detect ECB mode since the corresponding
+    /// ciphertext blocks will also be identical.
     pub fn get_cipher_mode<Oracle>(mut encrypt_buffer: Oracle) -> Result<Mode, Error>
         where Oracle: FnMut(&[u8]) -> Result<Vec<u8>, Error>
     {
@@ -99,9 +101,9 @@ pub mod ecb_cut_and_paste {
         use crypto::symmetric::ciphers::{Cipher, Aes128};
         use crypto::symmetric::padding_modes::{PaddingMode, Pkcs7};
 
-        // Encrypting the profile corresponding to the first email address
-        // yields (email=...) (admin\x11 ... \x11) (...) where the second
-        // contains the string "admin" followed by a valid PKCS7 padding.
+        /// Encrypting the profile corresponding to the first email address yields (email=...)
+        /// (admin\x11 ... \x11) (...) where the second contains the string "admin" followed by a
+        /// valid PKCS7 padding.
         fn get_admin_string() -> String {
             // The length of the first block ("email=" + padding) must be 16.
             let padding_size = Pkcs7::min_padding_size(Aes128::BLOCK_SIZE, "email=".len());
@@ -113,10 +115,9 @@ pub mod ecb_cut_and_paste {
             format!("{}admin{}@bar.com", padding_string, std::str::from_utf8(&padding_bytes).unwrap())
         }
 
-        // Encrypting the profile corresponding to the second email address
-        // yields (email=...) (...role=) (...). Thus if we replace the third
-        // with the second block from above, we get a valid parameter string
-        // corresponding to a profile with admin privileges.
+        /// Encrypting the profile corresponding to the second email address yields (email=...)
+        /// (...role=) (...). Thus if we replace the third with the second block from above, we get
+        /// a valid parameter string corresponding to a profile with admin privileges.
         fn get_email_string() -> String {
             // The length of the email plus '&uid=10&role=' must be and even multiple of 16.
             "admin@cryp.to".to_string()
@@ -225,11 +226,11 @@ pub mod cbc_bitflipping_attacks {
         }
     }
 
-    // By encrypting a long sequence of 'A's we know that (at least) one ciphertext block C will
-    // decrypt to a plaintext block P with prefix "AA...A" of the same size as the target
-    // plaintext. Now, if we XOR the ciphertext block immediately before C with the difference
-    // between our target plaintext and "AA...A", the resulting ciphertext will decrypt to a random
-    // block, followed by the target plaintext.
+    /// By encrypting a long sequence of 'A's we know that (at least) one ciphertext block C will
+    /// decrypt to a plaintext block P with prefix "AA...A" of the same size as the target
+    /// plaintext. Now, if we XOR the ciphertext block immediately before C with the difference
+    /// between our target plaintext and "AA...A", the resulting ciphertext will decrypt to a
+    /// random block, followed by the target plaintext.
     pub fn get_admin_profile<Oracle>(
         prefix_size: usize,
         encrypt_buffer: &mut Oracle
