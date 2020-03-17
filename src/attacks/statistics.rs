@@ -74,3 +74,26 @@ pub mod single_byte_xor {
         Ok(String::from_utf8(result.0)?)
     }
 }
+
+pub mod detect_single_byte_xor {
+    use super::single_byte_xor;
+    use single_byte_xor::Error;
+    use crate::math::optimization::Minimize;
+    use crate::math::statistics::Distribution;
+
+    fn score(ciphertext: &[u8]) -> f64 {
+        ciphertext
+            .iter()
+            .collect::<Distribution<u8>>()
+            .entropy()
+    }
+
+    pub fn recover_plaintext(ciphertexts: &[Vec<u8>]) -> Result<String, Error> {
+        let result = ciphertexts
+            .iter()
+            .minimize(|ciphertext|
+                score(ciphertext)
+            );
+        single_byte_xor::recover_plaintext(result.0)
+    }
+}

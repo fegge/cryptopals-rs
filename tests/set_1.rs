@@ -46,4 +46,20 @@ mod set_1 {
             assert_eq!(result.unwrap(), "Cooking MC's like a pound of bacon");
         }
     }
+    
+    mod problem_4 {
+        use hex;
+        use cryptopals::attacks::statistics::detect_single_byte_xor;
+
+        #[test]
+        fn solution() {
+            let ciphertexts: Vec<Vec<u8>> = include_str!("../data/set_1/problem_4.txt")
+                .split('\n')
+                .map(|string| hex::decode(string).unwrap())
+                .collect();
+            
+            let result = detect_single_byte_xor::recover_plaintext(&ciphertexts);
+            assert_eq!(result.unwrap(), "Now that the party is jumping\n");
+        }
+    }
 }
