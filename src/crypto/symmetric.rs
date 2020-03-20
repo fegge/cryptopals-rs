@@ -370,6 +370,7 @@ pub use padding_modes::{
 
 pub mod cipher_modes {
     use rand;
+    use rand::Rng;
 
     use std::iter;
     use super::Error;
@@ -594,6 +595,41 @@ pub mod cipher_modes {
         }
     }
 
+    pub struct Xor {
+        key: Vec<u8>
+    }
+
+    impl Xor {
+        pub fn new(key: &Key) -> Self {
+            Xor { key: key.to_owned() }
+        }
+        
+        fn xor_inplace<'a>(lhs: &'a mut [u8], rhs: &[u8]) -> &'a [u8] {
+            lhs.iter_mut().zip(rhs).for_each(|(x, y)| *x ^= y);
+            lhs
+        }
+    }
+
+    impl StreamCipherMode for Xor {
+        fn random() -> Result<Self, Error> {
+            let key_size = rand::thread_rng().gen_range(16, 32);
+            let key: Vec<u8> = (0..key_size).map(|_| { rand::random() }).collect();
+            Ok(Self { key })
+        }
+        
+        fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
+            let keys = iter::repeat(&self.key);
+            for (block, key) in buffer.chunks_mut(self.key.len()).zip(keys) {
+                Self::xor_inplace(block, key);
+            }
+            Ok(buffer)
+        }
+
+        fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
+            self.encrypt_inplace(buffer)
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use std::convert::TryInto;
@@ -661,6 +697,14 @@ pub mod cipher_modes {
             0xb6, 0x2d, 0xb0, 0xca,
             0x74, 0xa9, 0x5a, 0xed,
             0xde, 0x08, 0xd4,
+        ];
+
+        const XOR_CIPHERTEXT: [u8; 19] = [
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00,
         ];
  
         #[test]
@@ -752,6 +796,32 @@ pub mod cipher_modes {
             let result = cipher.decrypt_buffer(&buffer);
             assert_eq!(&result.unwrap(), &PLAINTEXT);
         }
+
+        #[test]
+        fn encrypt_xor_cipher() {
+            let mut cipher = Xor::new(&RAW_KEY);
+            let mut buffer = PLAINTEXT.to_owned();
+            let result = cipher.encrypt_inplace(&mut buffer);
+            assert_eq!(result.unwrap(), XOR_CIPHERTEXT);
+            
+            let mut cipher = Xor::new(&RAW_KEY);
+            let buffer = PLAINTEXT.to_owned();
+            let result = cipher.encrypt_buffer(&buffer);
+            assert_eq!(&result.unwrap(), &XOR_CIPHERTEXT);
+        }
+        
+        #[test]
+        fn decrypt_xor_cipher() {
+            let mut cipher = Xor::new(&RAW_KEY);
+            let mut buffer = XOR_CIPHERTEXT.to_owned();
+            let result = cipher.decrypt_inplace(&mut buffer);
+            assert_eq!(result.unwrap(), PLAINTEXT);
+            
+            let mut cipher = Xor::new(&RAW_KEY);
+            let buffer = XOR_CIPHERTEXT.to_owned();
+            let result = cipher.decrypt_buffer(&buffer);
+            assert_eq!(&result.unwrap(), &PLAINTEXT);
+        }
     }
 }
 
@@ -760,7 +830,8 @@ pub use cipher_modes::{
     StreamCipherMode,
     Ecb,
     Cbc,
-    Ctr
+    Ctr,
+    Xor
 };
 
 pub type Aes128Ecb = Ecb<Aes128, Pkcs7>;
