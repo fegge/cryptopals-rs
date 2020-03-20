@@ -794,6 +794,7 @@ mod tests {
 
     #[test]
     #[should_panic]
+    #[cfg(debug_assertions)]
     fn invalid_vector_access() {
         let vector = Vector::new(255);
         vector.get_element(255);
