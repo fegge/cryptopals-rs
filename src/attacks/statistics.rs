@@ -100,13 +100,30 @@ pub mod detect_single_byte_xor {
 }
 
 pub mod repeating_key_xor {
+    use std::string::FromUtf8Error;
+    
     use super::single_byte_xor;
     use crate::math::optimization::Minimize;
     use crate::math::statistics::Distribution;
-    
+    use crate::crypto::symmetric::{Xor, StreamCipherMode};
+    use crate::crypto::symmetric;
+
     #[derive(Debug)]
     pub enum Error {
         RecoveryError,
+        DecodingError,
+    }
+
+    impl std::convert::From<FromUtf8Error> for Error {
+        fn from(_: FromUtf8Error) -> Self {
+            Error::DecodingError
+        }
+    }
+
+    impl std::convert::From<symmetric::Error> for Error {
+        fn from(_: symmetric::Error) -> Self {
+            Error::RecoveryError
+        }
     }
 
     fn hamming_distance(lhs: &[u8], rhs: &[u8]) -> u32 {
@@ -154,7 +171,7 @@ pub mod repeating_key_xor {
                 .collect();
             key.push(recover_key_byte(&bytes, &distribution));
         }
-        println!("{:?}", String::from_utf8(key));
-        Err(Error::RecoveryError)
+        let plaintext = Xor::new(&key).decrypt_buffer(ciphertext)?;
+        Ok(String::from_utf8(plaintext)?)
     }
 }

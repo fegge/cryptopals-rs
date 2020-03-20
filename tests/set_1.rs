@@ -92,7 +92,9 @@ mod set_1 {
                 &include_str!("../data/set_1/problem_6.txt").replace("\n", "")
             ).unwrap();
             
-            repeating_key_xor::recover_plaintext(&ciphertext);
+            // This decodes the plaintext as UTF-8.
+            let result = repeating_key_xor::recover_plaintext(&ciphertext);
+            assert!(result.is_ok());
         }
     }
 }
