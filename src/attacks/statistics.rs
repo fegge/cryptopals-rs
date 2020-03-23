@@ -103,10 +103,12 @@ pub mod repeating_key_xor {
     use std::string::FromUtf8Error;
     
     use super::single_byte_xor;
+    
     use crate::math::optimization::Minimize;
     use crate::math::statistics::Distribution;
-    use crate::crypto::symmetric::{Xor, StreamCipherMode};
+    
     use crate::crypto::symmetric;
+    use symmetric::{RepeatingKeyXor, StreamCipherMode};
 
     #[derive(Debug)]
     pub enum Error {
@@ -171,7 +173,7 @@ pub mod repeating_key_xor {
                 .collect();
             key.push(recover_key_byte(&bytes, &distribution));
         }
-        let plaintext = Xor::new(&key).decrypt_buffer(ciphertext)?;
+        let plaintext = RepeatingKeyXor::new(&key).decrypt_buffer(ciphertext)?;
         Ok(String::from_utf8(plaintext)?)
     }
 }

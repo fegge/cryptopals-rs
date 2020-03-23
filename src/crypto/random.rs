@@ -1,9 +1,5 @@
-use crate::crypto::symmetric;
-use symmetric::cipher_modes::StreamCipherMode;
-
+/// A random number generator trait.
 pub trait RandomGenerator {
-    fn random() -> Self;
-
     fn next_u8(&mut self) -> u8;
 
     fn next_u16(&mut self) -> u16;
@@ -13,6 +9,7 @@ pub trait RandomGenerator {
     fn next_u64(&mut self) -> u64;
 }
 
+/// A seedable random number generator trait.
 pub trait SeedableGenerator: RandomGenerator {
     type Seed;
 
@@ -21,19 +18,9 @@ pub trait SeedableGenerator: RandomGenerator {
     fn seed(&mut self, seed: Self::Seed);
 }
 
-impl<G, S> StreamCipherMode for G where G: SeedableGenerator<Seed = S> {
-    fn random() -> Result<Self, symmetric::Error> {
-        Ok(Self::random())
-    }
-    
-    fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], symmetric::Error> {
-        buffer.iter_mut().for_each(|x| *x ^= self.next_u8());
-        Ok(buffer)
-    }
-
-    fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], symmetric::Error> {
-        self.encrypt_inplace(buffer)
-    }
+/// Return a random instance of `Self`.
+pub trait Random {
+    fn random() -> Self;
 }
 
 pub mod mersenne_twister {
@@ -44,8 +31,9 @@ pub mod mersenne_twister {
     use std::cmp::PartialEq;
     use std::num::Wrapping;
 
-    use super::{RandomGenerator, SeedableGenerator};
-
+    use super::{Random, RandomGenerator, SeedableGenerator};
+    
+    /// Standard 32-bit Mersenne twister.
     pub struct Mt19337 {
         state: [Wrapping<u32>; 624],
         index: usize
@@ -89,11 +77,13 @@ pub mod mersenne_twister {
         }
     }
 
-    impl RandomGenerator for Mt19337 {
+    impl Random for Mt19337 {
         fn random() -> Self {
             Self::new(rand::thread_rng().gen())
         }
-        
+    }
+
+    impl RandomGenerator for Mt19337 {
         fn next_u8(&mut self) -> u8 {
             (self.next_u32() & 0xff) as u8
         }
@@ -157,6 +147,14 @@ pub mod mersenne_twister {
         fn eq(&self, other: &Self) -> bool {
             // Two Mt19337 instances are equal if the indices and internal state arrays are equal.
             self.index == other.index && self.state.iter().zip(other.state.iter()).all(|(x, y)| x == y)
+        }
+    }
+
+    impl Iterator for Mt19337 {
+        type Item = u8;
+
+        fn next(&mut self) -> Option<u8> {
+            Some(self.next_u8())
         }
     }
 

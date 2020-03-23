@@ -72,11 +72,11 @@ pub mod ecb_cbc_detection {
 
             if Self::flip_coin() {
                 let mut cipher_mode = Self::get_ecb_mode()?;
-                cipher_mode.encrypt_inplace(&mut output_buffer, output_size)?;
+                cipher_mode.encrypt_mut(&mut output_buffer, output_size)?;
                 self.cipher_mode = Some(Mode::Ecb);
             } else {
                 let mut cipher_mode = Self::get_cbc_mode()?;
-                cipher_mode.encrypt_inplace(&mut output_buffer, output_size)?;
+                cipher_mode.encrypt_mut(&mut output_buffer, output_size)?;
                 self.cipher_mode = Some(Mode::Cbc);
             }
             Ok(output_buffer)
@@ -146,7 +146,7 @@ pub mod simple_ecb_decryption {
             let output_size = output_buffer.len();
             let padding_size = Pkcs7::min_padding_size(Aes128::BLOCK_SIZE, output_size);
             output_buffer.resize(output_size + padding_size, 0);
-            self.cipher.encrypt_inplace(&mut output_buffer, output_size)?;
+            self.cipher.encrypt_mut(&mut output_buffer, output_size)?;
 
             Ok(output_buffer)
         }
@@ -158,6 +158,9 @@ pub mod simple_ecb_decryption {
 pub mod ecb_cut_and_paste {
     use std::str::FromStr;
     
+    use crate::crypto::random;
+    use random::Random;
+
     use crate::crypto::symmetric;
     use symmetric::{BlockCipherMode, Aes128Ecb};
 
@@ -253,7 +256,7 @@ pub mod ecb_cut_and_paste {
 
     impl Oracle {
         pub fn random() -> Result<Self, Error> {
-            Ok(Oracle { cipher: Aes128Ecb::random()? })
+            Ok(Oracle { cipher: Aes128Ecb::random() })
         }
 
         pub fn get_profile_for(&mut self, email: &str) -> Result<Vec<u8>, Error> {
@@ -276,6 +279,7 @@ pub mod cbc_bitflipping_attacks {
         Aes128Cbc,
         Error,
     };
+    use crate::crypto::random::Random;
    
     pub struct Oracle {
         cipher: Aes128Cbc
@@ -283,7 +287,7 @@ pub mod cbc_bitflipping_attacks {
 
     impl Oracle {
         pub fn random() -> Result<Self, Error> {
-            Ok(Oracle { cipher: Aes128Cbc::random()? })
+            Ok(Oracle { cipher: Aes128Cbc::random() })
         }
 
         pub fn encrypt_user_data(&mut self, user_data: &str) -> Result<Vec<u8>, Error> {

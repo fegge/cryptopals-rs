@@ -1,5 +1,28 @@
 //! This module contains attacks against symmetric primitives.
 
+pub mod ecb_detection {
+    use std::convert::TryInto;
+    use std::collections::HashSet;
+
+    use crate::crypto::symmetric::{Aes128, Cipher};
+
+    /// We attempt to detect ECB-mode by searching for repeating cipher blocks.
+    /// 
+    /// # Note
+    ///
+    /// We assume a 16 byte block size.
+    pub fn detect_ecb_mode(encrypted_buffer: &[u8]) -> bool {
+        let mut block_hashes = HashSet::new();
+        for block in encrypted_buffer.chunks(Aes128::BLOCK_SIZE) {
+            let block_hash = u64::from_le_bytes(block[..8].try_into().unwrap());
+            if !block_hashes.insert(block_hash) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
 pub mod ecb_cbc_detection {
     use crate::{crypto, oracles};
 
@@ -7,7 +30,7 @@ pub mod ecb_cbc_detection {
     use crypto::symmetric::ciphers::{Cipher, Aes128};
     use oracles::symmetric::ecb_cbc_detection::Mode;
    
-    /// By encrypting mutiple identical blocks, we can detect ECB mode since the corresponding
+    /// By encrypting mutiple identical blocks, we can detect ECB-mode since the corresponding
     /// ciphertext blocks will also be identical.
     pub fn get_cipher_mode<Oracle>(mut encrypt_buffer: Oracle) -> Result<Mode, Error>
         where Oracle: FnMut(&[u8]) -> Result<Vec<u8>, Error>
@@ -335,7 +358,7 @@ pub mod cbc_padding_oracle {
             .into();
 
         let pkcs7 = Pkcs7::new(Aes128::BLOCK_SIZE);
-        let length = pkcs7.unpad_inplace(&solution)?;
+        let length = pkcs7.unpad_mut(&solution)?;
         
         solution.truncate(length);
         Ok(solution)

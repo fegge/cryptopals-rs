@@ -26,24 +26,24 @@ pub mod ciphers {
 
         fn new(raw_key: &Key) -> Result<Self, Error>;
 
-        // TODO: encrypt_inplace should take a block of size Self::BLOCK_SIZE.
-        fn encrypt_inplace<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error>; 
+        // TODO: encrypt_mut should take a block of size Self::BLOCK_SIZE.
+        fn encrypt_mut<'a>(&self, block: &'a mut [u8]) -> &'a [u8]; 
 
-        // TODO: decrypt_inplace should take a block of size Self::BLOCK_SIZE.
-        fn decrypt_inplace<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error>; 
+        // TODO: decrypt_mut should take a block of size Self::BLOCK_SIZE.
+        fn decrypt_mut<'a>(&self, block: &'a mut [u8]) -> &'a [u8]; 
         
         // TODO: encrypt_block should take a block of size Self::BLOCK_SIZE.
-        fn encrypt_block(&self, block: &[u8]) -> Result<Vec<u8>, Error> {
+        fn encrypt_block(&self, block: &[u8]) -> Vec<u8> {
             let mut block = block.to_owned();
-            self.encrypt_inplace(&mut block)?;
-            Ok(block)
+            self.encrypt_mut(&mut block);
+            block
         }
 
         // TODO: decrypt_block should take a block of size Self::BLOCK_SIZE.
-        fn decrypt_block(&self, block: &[u8]) -> Result<Vec<u8>, Error> {
+        fn decrypt_block(&self, block: &[u8]) -> Vec<u8> {
             let mut block = block.to_owned();
-            self.decrypt_inplace(&mut block)?;
-            Ok(block)
+            self.decrypt_mut(&mut block);
+            block
         }
     }
     
@@ -75,14 +75,14 @@ pub mod ciphers {
             })
         }
 
-        fn encrypt_inplace<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> { 
-            aes::encrypt_inplace(block, &self.encrypt_key);
-            Ok(block)
+        fn encrypt_mut<'a>(&self, block: &'a mut [u8]) -> &'a [u8] { 
+            aes::encrypt_mut(block, &self.encrypt_key);
+            block
         }
 
-        fn decrypt_inplace<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> {
-            aes::decrypt_inplace(block, &self.decrypt_key);
-            Ok(block)
+        fn decrypt_mut<'a>(&self, block: &'a mut [u8]) -> &'a [u8] {
+            aes::decrypt_mut(block, &self.decrypt_key);
+            block
         }
     }
 
@@ -109,15 +109,15 @@ pub mod ciphers {
         }
 
         // TODO: encrypt_block should take a block of size Self::BLOCK_SIZE.
-        fn encrypt_inplace<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> { 
-            aes::encrypt_inplace(block, &self.encrypt_key);
-            Ok(block)
+        fn encrypt_mut<'a>(&self, block: &'a mut [u8]) -> &'a [u8] { 
+            aes::encrypt_mut(block, &self.encrypt_key);
+            block
         }
 
         // TODO: decrypt_block should take a block of size Self::BLOCK_SIZE.
-        fn decrypt_inplace<'a>(&self, block: &'a mut [u8]) -> Result<&'a [u8], Error> {
-            aes::decrypt_inplace(block, &self.decrypt_key);
-            Ok(block)
+        fn decrypt_mut<'a>(&self, block: &'a mut [u8]) -> &'a [u8] {
+            aes::decrypt_mut(block, &self.decrypt_key);
+            block
         }
     }
 
@@ -180,21 +180,21 @@ pub mod ciphers {
         #[test]
         fn encrypt_aes_128() {
             let aes = Aes128::new(&RAW_KEY_128).unwrap();
-
             let mut block = PLAINTEXT_128.clone();
-            assert!(aes.encrypt_inplace(&mut block).is_ok());
+
+            aes.encrypt_mut(&mut block);
             assert_eq!(block, CIPHERTEXT_128);
-            assert_eq!(aes.encrypt_block(&PLAINTEXT_128).unwrap(), CIPHERTEXT_128);
+            assert_eq!(aes.encrypt_block(&PLAINTEXT_128), CIPHERTEXT_128);
         }
     
         #[test]
         fn decrypt_aes_128() {
             let aes = Aes128::new(&RAW_KEY_128).unwrap();
-
             let mut block = CIPHERTEXT_128.clone();
-            assert!(aes.decrypt_inplace(&mut block).is_ok());
+
+            aes.decrypt_mut(&mut block);
             assert_eq!(block, PLAINTEXT_128);
-            assert_eq!(aes.decrypt_block(&CIPHERTEXT_128).unwrap(), PLAINTEXT_128);
+            assert_eq!(aes.decrypt_block(&CIPHERTEXT_128), PLAINTEXT_128);
         }
         
         #[test]
@@ -206,21 +206,21 @@ pub mod ciphers {
         #[test]
         fn encrypt_aes_256() {
             let aes = Aes256::new(&RAW_KEY_256).unwrap();
-
             let mut block = PLAINTEXT_256.clone();
-            assert!(aes.encrypt_inplace(&mut block).is_ok());
+            
+            aes.encrypt_mut(&mut block);
             assert_eq!(block, CIPHERTEXT_256);
-            assert_eq!(aes.encrypt_block(&PLAINTEXT_256).unwrap(), CIPHERTEXT_256);
+            assert_eq!(aes.encrypt_block(&PLAINTEXT_256), CIPHERTEXT_256);
         }
     
         #[test]
         fn decrypt_aes_256() {
             let aes = Aes256::new(&RAW_KEY_256).unwrap();
-
             let mut block = CIPHERTEXT_256.clone();
-            assert!(aes.decrypt_inplace(&mut block).is_ok());
+            
+            aes.decrypt_mut(&mut block);
             assert_eq!(block, PLAINTEXT_256);
-            assert_eq!(aes.decrypt_block(&CIPHERTEXT_256).unwrap(), PLAINTEXT_256);
+            assert_eq!(aes.decrypt_block(&CIPHERTEXT_256), PLAINTEXT_256);
         }
     }
 }
@@ -243,19 +243,19 @@ pub mod padding_modes {
 
         fn block_size(&self) -> usize;
 
-        fn pad_inplace<'a>(&self, buffer: &'a mut [u8], end: usize) -> Result<&'a [u8], Error>;
+        fn pad_mut<'a>(&self, buffer: &'a mut [u8], end: usize) -> Result<&'a [u8], Error>;
         
-        fn unpad_inplace(&self, buffer: &[u8]) -> Result<usize, Error>;
+        fn unpad_mut(&self, buffer: &[u8]) -> Result<usize, Error>;
 
         fn pad_buffer<'a>(&self, buffer: &'a mut Vec<u8>) -> Result<&'a Vec<u8>, Error> {
             let buffer_size = buffer.len();
             buffer.resize(buffer_size + Self::min_padding_size(self.block_size(), buffer_size), 0);
-            self.pad_inplace(buffer, buffer_size)?;
+            self.pad_mut(buffer, buffer_size)?;
             Ok(buffer)
         }
         
         fn unpad_buffer<'a>(&self, buffer: &'a mut Vec<u8>) -> Result<&'a Vec<u8>, Error> {
-            let buffer_size = self.unpad_inplace(buffer)?;
+            let buffer_size = self.unpad_mut(buffer)?;
             buffer.truncate(buffer_size);
             Ok(buffer)
         }
@@ -286,7 +286,7 @@ pub mod padding_modes {
 
         fn block_size(&self) -> usize { self.block_size }
         
-        fn pad_inplace<'a>(&self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
+        fn pad_mut<'a>(&self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
             if buffer.len() <= size || buffer.len() > size + 255 {
                 return Err(Error::PaddingError);
             }
@@ -295,7 +295,7 @@ pub mod padding_modes {
             Ok(buffer)
         }
 
-        fn unpad_inplace(&self, buffer: &[u8]) -> Result<usize, Error> {
+        fn unpad_mut(&self, buffer: &[u8]) -> Result<usize, Error> {
             if let Some(&last_byte) = buffer.last() {
                 let padding_size = last_byte as usize;
                 if !Pkcs7::validate_padding(buffer, padding_size) {
@@ -322,16 +322,16 @@ pub mod padding_modes {
             let pkcs7 = Pkcs7::new(8);
 
             let mut buffer: [u8; 8] = [4, 5, 6, 7, 8, 0, 0, 0];
-            let result = pkcs7.pad_inplace(&mut buffer, 5);
+            let result = pkcs7.pad_mut(&mut buffer, 5);
             assert!(result.is_ok());
             assert_eq!(buffer[5..], [3; 3]);
 
-            let result = pkcs7.unpad_inplace(&buffer);
+            let result = pkcs7.unpad_mut(&buffer);
             assert!(result.is_ok());
             assert_eq!(result.unwrap(), 5);
 
             let mut buffer = [0; 8];
-            let result = pkcs7.pad_inplace(&mut buffer, 0);
+            let result = pkcs7.pad_mut(&mut buffer, 0);
             assert!(result.is_ok());
             assert_eq!(buffer, [8; 8]);
 
@@ -351,13 +351,13 @@ pub mod padding_modes {
             let pkcs7 = Pkcs7::new(8);
             let mut buffer: [u8; 4] = [1, 2, 3, 4];
             
-            let result = pkcs7.pad_inplace(&mut buffer, 4);
+            let result = pkcs7.pad_mut(&mut buffer, 4);
             assert!(result.is_err());
 
-            let result = pkcs7.unpad_inplace(&mut buffer);
+            let result = pkcs7.unpad_mut(&mut buffer);
             assert!(result.is_err());
 
-            let result = pkcs7.unpad_inplace(&mut [3, 2, 1, 0]);
+            let result = pkcs7.unpad_mut(&mut [3, 2, 1, 0]);
             assert!(result.is_err());
         }
     }
@@ -372,33 +372,36 @@ pub mod cipher_modes {
     use rand;
     use rand::Rng;
 
-    use std::iter;
     use super::Error;
     use super::ciphers::{Cipher, Key};
     use super::padding_modes::PaddingMode;
-    
+
+    use crate::crypto::random::Random;
+
     pub type Iv = [u8];
     pub type Nonce = [u8];
 
+    /// Block cipher mode trait.
     pub trait BlockCipherMode<C: Cipher, P: PaddingMode>: Sized {
-        fn random() -> Result<Self, Error>;
-        
-        fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8], end: usize) -> Result<&'a [u8], Error>;
 
-        fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error>;
+        /// Pad and encrypt a mutable buffer in-place. Returns a reference to the buffer.
+        fn encrypt_mut<'a>(&mut self, buffer: &'a mut [u8], end: usize) -> Result<&'a [u8], Error>;
+
+        /// Decrypt a mutable buffer in-place. Returns the buffer size after unpadding.
+        fn decrypt_mut<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error>;
         
         fn encrypt_buffer(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
             let padding_size = P::min_padding_size(C::BLOCK_SIZE, input_buffer.len());
             let mut output_buffer = Vec::with_capacity(input_buffer.len() + padding_size);
             output_buffer.extend_from_slice(input_buffer);
             output_buffer.resize(input_buffer.len() + padding_size, 0);
-            self.encrypt_inplace(&mut output_buffer, input_buffer.len())?;
+            self.encrypt_mut(&mut output_buffer, input_buffer.len())?;
             Ok(output_buffer)
         }
 
         fn decrypt_buffer(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
             let mut output_buffer = input_buffer.to_vec();
-            let output_size = self.decrypt_inplace(&mut output_buffer)?;
+            let output_size = self.decrypt_mut(&mut output_buffer)?;
             output_buffer.truncate(output_size);
             Ok(output_buffer)
         }
@@ -413,35 +416,7 @@ pub mod cipher_modes {
         }
     }
     
-    pub trait StreamCipherMode: Sized {
-        fn random() -> Result<Self, Error>;
-
-        fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
-
-        fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
-        
-        fn encrypt_buffer(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
-            let mut output_buffer = input_buffer.to_vec();
-            self.encrypt_inplace(&mut output_buffer)?;
-            Ok(output_buffer)
-        }
-
-        fn decrypt_buffer(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
-            let mut output_buffer = input_buffer.to_vec();
-            self.decrypt_inplace(&mut output_buffer)?;
-            Ok(output_buffer)
-        }
-
-        fn encrypt_str(&mut self, input_str: &str) -> Result<Vec<u8>, Error> {
-            self.encrypt_buffer(input_str.as_bytes())
-        }
-
-        fn decrypt_str(&mut self, input_buffer: &[u8]) -> Result<String, Error> {
-            let output_buffer = self.decrypt_buffer(input_buffer)?;
-            String::from_utf8(output_buffer).map_err(Error::from)
-        }
-    }
-
+    /// Generic ECB-mode type.
     pub struct Ecb<C: Cipher, P: PaddingMode> {
         cipher: C,
         padding: P
@@ -456,30 +431,33 @@ pub mod cipher_modes {
         }
     }
 
-    impl<C: Cipher, P: PaddingMode> BlockCipherMode<C, P> for Ecb<C, P> {
-        fn random() -> Result<Self, Error> {
+    impl<C: Cipher, P: PaddingMode> Random for Ecb<C, P> {
+        fn random() -> Self {
             let key: Vec<u8> = (0..C::KEY_SIZE).map(|_| { rand::random() }).collect();
-            Self::new(&key)
+            Self::new(&key).unwrap()
         }
+    }
 
-        fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
+    impl<C: Cipher, P: PaddingMode> BlockCipherMode<C, P> for Ecb<C, P> {
+        fn encrypt_mut<'a>(&mut self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
             assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
-            self.padding.pad_inplace(buffer, size)?;
+            self.padding.pad_mut(buffer, size)?;
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
-                self.cipher.encrypt_inplace(&mut block)?;
+                self.cipher.encrypt_mut(&mut block);
             }
             Ok(buffer)
         }
 
-        fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error> {
+        fn decrypt_mut<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error> {
             assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
-                self.cipher.decrypt_inplace(&mut block)?;
+                self.cipher.decrypt_mut(&mut block);
             }
-            self.padding.unpad_inplace(buffer)
+            self.padding.unpad_mut(buffer)
         }
     }
 
+    /// Generic CBC-mode type.
     pub struct Cbc<C: Cipher, P: PaddingMode> {
         cipher: C,
         padding: P,
@@ -498,46 +476,95 @@ pub mod cipher_modes {
             })
         }
         
-        fn xor_inplace<'a>(lhs: &'a mut [u8], rhs: &[u8]) -> &'a [u8] {
+        fn xor_mut<'a>(lhs: &'a mut [u8], rhs: &[u8]) -> &'a [u8] {
             lhs.iter_mut().zip(rhs).for_each(|(x, y)| *x ^= y);
             lhs
         }
     }
 
-    impl<C: Cipher, P: PaddingMode> BlockCipherMode<C, P> for Cbc<C, P> {
-        fn random() -> Result<Self, Error> {
+    impl<C: Cipher, P: PaddingMode> Random for Cbc<C, P> {
+        fn random() -> Self {
             let key: Vec<u8> = (0..C::KEY_SIZE).map(|_| { rand::random() }).collect();
             let iv: Vec<u8> = (0..C::BLOCK_SIZE).map(|_| { rand::random() }).collect();
-            Self::new(&key, &iv)
+            Self::new(&key, &iv).unwrap()
         }
-        
-        fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
+    }
+
+    impl<C: Cipher, P: PaddingMode> BlockCipherMode<C, P> for Cbc<C, P> {
+        fn encrypt_mut<'a>(&mut self, buffer: &'a mut [u8], size: usize) -> Result<&'a [u8], Error> {
             assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
-            self.padding.pad_inplace(buffer, size)?;
+            self.padding.pad_mut(buffer, size)?;
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
-                Self::xor_inplace(&mut block, &self.iv);
-                self.cipher.encrypt_inplace(&mut block)?;
+                Self::xor_mut(&mut block, &self.iv);
+                self.cipher.encrypt_mut(&mut block);
                 self.iv = block.to_owned();
             }
             Ok(buffer)
         }
 
-        fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error> {
+        fn decrypt_mut<'a>(&mut self, buffer: &'a mut [u8]) -> Result<usize, Error> {
             assert_eq!(buffer.len() % C::BLOCK_SIZE, 0);
             for mut block in buffer.chunks_mut(C::BLOCK_SIZE) {
                 let next_iv = block.to_owned();
-                self.cipher.decrypt_inplace(&mut block)?;
-                Self::xor_inplace(&mut block, &self.iv); 
+                self.cipher.decrypt_mut(&mut block);
+                Self::xor_mut(&mut block, &self.iv); 
                 self.iv = next_iv;
             }
-            self.padding.unpad_inplace(buffer)
+            self.padding.unpad_mut(buffer)
         }
     }
 
+    /// Stream cipher mode trait.
+    pub trait StreamCipherMode: Sized + Iterator<Item=u8> {
+        /// Encrypt a mutable buffer in-place.
+        fn encrypt_mut<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
+
+        /// Decrypt a mutable buffer in-place.
+        fn decrypt_mut<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
+        
+        fn encrypt_buffer(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
+            let mut output_buffer = input_buffer.to_vec();
+            self.encrypt_mut(&mut output_buffer)?;
+            Ok(output_buffer)
+        }
+
+        fn decrypt_buffer(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
+            let mut output_buffer = input_buffer.to_vec();
+            self.decrypt_mut(&mut output_buffer)?;
+            Ok(output_buffer)
+        }
+
+        fn encrypt_str(&mut self, input_str: &str) -> Result<Vec<u8>, Error> {
+            self.encrypt_buffer(input_str.as_bytes())
+        }
+
+        fn decrypt_str(&mut self, input_buffer: &[u8]) -> Result<String, Error> {
+            let output_buffer = self.decrypt_buffer(input_buffer)?;
+            String::from_utf8(output_buffer).map_err(Error::from)
+        }
+    }
+    
+    /// Generic implementation of `StreamCipherMode` for implementaions of `Iterator<Item=u8>`.
+    impl<I: Iterator<Item=u8>> StreamCipherMode for I {
+        fn encrypt_mut<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
+            for (x, y) in buffer.iter_mut().zip(self) {
+                *x ^= y;
+            }
+            Ok(buffer)
+        }
+
+        fn decrypt_mut<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
+            self.encrypt_mut(buffer)
+        }
+    }
+
+    /// Generic CTR-mode type.
     pub struct Ctr<C: Cipher> {
         cipher: C,
         nonce: Vec<u8>,
         counter: Vec<u8>,
+        key: Vec<u8>,
+        offset: usize
     }
 
     impl<C: Cipher> Ctr<C> {
@@ -548,85 +575,79 @@ pub mod cipher_modes {
             Ok(Self { 
                 cipher: C::new(&key)?,
                 nonce: nonce.to_owned(),
-                counter: vec![0; C::BLOCK_SIZE / 2]
+                counter: vec![0; C::BLOCK_SIZE / 2],
+                key: Vec::new(),
+                offset: C::BLOCK_SIZE
             })
         }
         
-        fn xor_inplace<'a>(lhs: &'a mut [u8], rhs: &[u8]) -> &'a [u8] {
-            lhs.iter_mut().zip(rhs).for_each(|(x, y)| *x ^= y);
-            lhs
-        }
-
-        fn next_counter(&mut self) -> Vec<u8> {
-            let counter = [&self.nonce.clone()[..], &self.counter.clone()[..]]
-                .concat();
+        fn update_counter(&mut self) {
             for i in 0..self.counter.len() {
                 let (result, overflow) = self.counter[i].overflowing_add(1);
                 self.counter[i] = result;
                 if !overflow { break }
             }
-            counter
         }
 
-        fn next_key(&mut self) -> Result<Vec<u8>, Error> {
-            let mut key = self.next_counter();
-            self.cipher.encrypt_inplace(&mut key)?;
-            Ok(key)
+        fn update_key(&mut self) {
+            self.key = [&self.nonce[..], &self.counter[..]].concat();
+            self.cipher.encrypt_mut(&mut self.key);
+            self.update_counter();
         }
     }
 
-    impl<C: Cipher> StreamCipherMode for Ctr<C> {
-        fn random() -> Result<Self, Error> {
+    impl<C: Cipher> Random for Ctr<C> {
+        fn random() -> Self {
             let key: Vec<u8> = (0..C::KEY_SIZE).map(|_| { rand::random() }).collect();
             let nonce: Vec<u8> = (0..(C::BLOCK_SIZE / 2)).map(|_| { rand::random() }).collect();
-            Self::new(&key, &nonce)
+            Self::new(&key, &nonce).unwrap()
         }
-        
-        fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
-            let keys = iter::repeat_with(|| self.next_key());
-            for (block, key) in buffer.chunks_mut(C::BLOCK_SIZE).zip(keys) {
-                Self::xor_inplace(block, &key?);
+    }
+    
+    impl<C: Cipher> Iterator for Ctr<C> {
+        type Item = u8;
+
+        fn next(&mut self) -> Option<u8> {
+            if self.offset >= C::BLOCK_SIZE {
+                self.update_key();
+                self.offset = 0;
             }
-            Ok(buffer)
-        }
-
-        fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
-            self.encrypt_inplace(buffer)
+            let offset = self.offset;
+            self.offset += 1;
+            Some(self.key[offset])
         }
     }
 
-    pub struct Xor {
-        key: Vec<u8>
+    /// Repeating key XOR cipher.
+    pub struct RepeatingKeyXor {
+        key: Vec<u8>,
+        offset: usize
     }
 
-    impl Xor {
-        pub fn new(key: &Key) -> Self {
-            Xor { key: key.to_owned() }
-        }
-        
-        fn xor_inplace<'a>(lhs: &'a mut [u8], rhs: &[u8]) -> &'a [u8] {
-            lhs.iter_mut().zip(rhs).for_each(|(x, y)| *x ^= y);
-            lhs
+    impl RepeatingKeyXor {
+        pub fn new(key: &[u8]) -> Self {
+            Self { key: key.to_owned(), offset: 0 }
         }
     }
 
-    impl StreamCipherMode for Xor {
-        fn random() -> Result<Self, Error> {
-            let key_size = rand::thread_rng().gen_range(16, 32);
+    impl Random for RepeatingKeyXor {
+        fn random() -> Self {
+            let key_size = rand::thread_rng().gen_range(2, 32);
             let key: Vec<u8> = (0..key_size).map(|_| { rand::random() }).collect();
-            Ok(Self { key })
+            Self { key, offset: 0 }
         }
-        
-        fn encrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
-            let keys = iter::repeat(&self.key);
-            for (block, key) in buffer.chunks_mut(self.key.len()).zip(keys) {
-                Self::xor_inplace(block, key);
-            }
-            Ok(buffer)
-        }
+    }
 
-        fn decrypt_inplace<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
-            self.encrypt_inplace(buffer)
+    impl Iterator for RepeatingKeyXor {
+        type Item = u8;
+
+        fn next(&mut self) -> Option<u8> {
+            if self.offset >= self.key.len() {
+                self.offset = 0;
+            }
+            let offset = self.offset;
+            self.offset += 1;
+            Some(self.key[offset])
         }
     }
 
@@ -699,7 +720,7 @@ pub mod cipher_modes {
             0xde, 0x08, 0xd4,
         ];
 
-        const XOR_CIPHERTEXT: [u8; 19] = [
+        const REPEATING_KEY_CIPHERTEXT: [u8; 19] = [
             0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00,
@@ -713,7 +734,7 @@ pub mod cipher_modes {
             let mut buffer = Vec::with_capacity(2 * Aes128::BLOCK_SIZE);
             buffer.extend(&PLAINTEXT);
             buffer.resize(2 * Aes128::BLOCK_SIZE, 0);
-            let result = cipher.encrypt_inplace(&mut buffer, PLAINTEXT.len());
+            let result = cipher.encrypt_mut(&mut buffer, PLAINTEXT.len());
             assert_eq!(result.unwrap(), ECB_CIPHERTEXT);
 
             let buffer = PLAINTEXT.to_owned();
@@ -725,7 +746,7 @@ pub mod cipher_modes {
         fn decrypt_ecb_mode() {
             let mut cipher = Aes128Ecb::new(&RAW_KEY).unwrap();
             let mut buffer = ECB_CIPHERTEXT.clone();
-            let result = cipher.decrypt_inplace(&mut buffer);
+            let result = cipher.decrypt_mut(&mut buffer);
             assert_eq!(buffer[..result.unwrap()], PLAINTEXT);
             
             let buffer = ECB_CIPHERTEXT.to_owned();
@@ -739,7 +760,7 @@ pub mod cipher_modes {
             let mut buffer = Vec::with_capacity(2 * Aes128::BLOCK_SIZE);
             buffer.extend(&PLAINTEXT);
             buffer.resize(2 * Aes128::BLOCK_SIZE, 0);
-            let result = cipher.encrypt_inplace(&mut buffer, PLAINTEXT.len());
+            let result = cipher.encrypt_mut(&mut buffer, PLAINTEXT.len());
             assert_eq!(result.unwrap(), CBC_CIPHERTEXT);
 
             let mut cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV).unwrap();
@@ -752,7 +773,7 @@ pub mod cipher_modes {
         fn decrypt_cbc_mode() {
             let mut cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV).unwrap();
             let mut buffer = CBC_CIPHERTEXT.clone();
-            let result = cipher.decrypt_inplace(&mut buffer);
+            let result = cipher.decrypt_mut(&mut buffer);
             assert_eq!(buffer[..result.unwrap()], PLAINTEXT);
             
             let mut cipher = Aes128Cbc::new(&RAW_KEY, &RAW_IV).unwrap();
@@ -764,10 +785,11 @@ pub mod cipher_modes {
         #[test]
         fn generate_counter() {
             let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
-            for i in 0..=256 {
-                let counter = cipher.next_counter();
-                assert_eq!(&counter[..8], &RAW_NONCE);
-                assert_eq!(u64::from_le_bytes(counter[8..].try_into().unwrap()), i as u64);
+            for value in 0..=256 {
+                let counter = &cipher.counter[..];
+                let result = u64::from_le_bytes(counter.try_into().unwrap());
+                assert_eq!(result, value as u64);
+                cipher.update_counter();
             }
         }
         
@@ -775,7 +797,7 @@ pub mod cipher_modes {
         fn encrypt_ctr_mode() {
             let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
             let mut buffer = PLAINTEXT.to_owned();
-            let result = cipher.encrypt_inplace(&mut buffer);
+            let result = cipher.encrypt_mut(&mut buffer);
             assert_eq!(result.unwrap(), CTR_CIPHERTEXT);
 
             let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
@@ -788,7 +810,7 @@ pub mod cipher_modes {
         fn decrypt_ctr_mode() {
             let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
             let mut buffer = CTR_CIPHERTEXT.to_owned();
-            let result = cipher.decrypt_inplace(&mut buffer);
+            let result = cipher.decrypt_mut(&mut buffer);
             assert_eq!(result.unwrap(), PLAINTEXT);
             
             let mut cipher = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
@@ -797,28 +819,28 @@ pub mod cipher_modes {
             assert_eq!(&result.unwrap(), &PLAINTEXT);
         }
 
-        #[test]
-        fn encrypt_xor_cipher() {
-            let mut cipher = Xor::new(&RAW_KEY);
+        #[test] 
+        fn encrypt_repeating_key() {
+            let mut cipher = RepeatingKeyXor::new(&RAW_KEY);
             let mut buffer = PLAINTEXT.to_owned();
-            let result = cipher.encrypt_inplace(&mut buffer);
-            assert_eq!(result.unwrap(), XOR_CIPHERTEXT);
+            let result = cipher.encrypt_mut(&mut buffer);
+            assert_eq!(result.unwrap(), REPEATING_KEY_CIPHERTEXT);
             
-            let mut cipher = Xor::new(&RAW_KEY);
+            let mut cipher = RepeatingKeyXor::new(&RAW_KEY);
             let buffer = PLAINTEXT.to_owned();
             let result = cipher.encrypt_buffer(&buffer);
-            assert_eq!(&result.unwrap(), &XOR_CIPHERTEXT);
+            assert_eq!(&result.unwrap(), &REPEATING_KEY_CIPHERTEXT);
         }
         
         #[test]
-        fn decrypt_xor_cipher() {
-            let mut cipher = Xor::new(&RAW_KEY);
-            let mut buffer = XOR_CIPHERTEXT.to_owned();
-            let result = cipher.decrypt_inplace(&mut buffer);
+        fn decrypt_repeating_key() {
+            let mut cipher = RepeatingKeyXor::new(&RAW_KEY);
+            let mut buffer = REPEATING_KEY_CIPHERTEXT.to_owned();
+            let result = cipher.decrypt_mut(&mut buffer);
             assert_eq!(result.unwrap(), PLAINTEXT);
             
-            let mut cipher = Xor::new(&RAW_KEY);
-            let buffer = XOR_CIPHERTEXT.to_owned();
+            let mut cipher = RepeatingKeyXor::new(&RAW_KEY);
+            let buffer = REPEATING_KEY_CIPHERTEXT.to_owned();
             let result = cipher.decrypt_buffer(&buffer);
             assert_eq!(&result.unwrap(), &PLAINTEXT);
         }
@@ -828,10 +850,10 @@ pub mod cipher_modes {
 pub use cipher_modes::{
     BlockCipherMode,
     StreamCipherMode,
+    RepeatingKeyXor,
     Ecb,
     Cbc,
-    Ctr,
-    Xor
+    Ctr
 };
 
 pub type Aes128Ecb = Ecb<Aes128, Pkcs7>;

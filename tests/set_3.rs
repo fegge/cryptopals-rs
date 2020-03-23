@@ -70,7 +70,7 @@ mod set_3 {
 
     mod problem_23 {
         use cryptopals::crypto;
-        use crypto::random::RandomGenerator;
+        use crypto::random::{Random, RandomGenerator};
         use crypto::random::mersenne_twister::Mt19337;
         
         use cryptopals::attacks::random::mersenne_twister::recover_state_from;

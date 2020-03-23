@@ -65,7 +65,7 @@ mod set_1 {
 
     mod problem_5 {
         use hex;
-        use cryptopals::crypto::symmetric::{StreamCipherMode, Xor};
+        use cryptopals::crypto::symmetric::{StreamCipherMode, RepeatingKeyXor};
         
         #[test]
         fn solution() {
@@ -73,7 +73,7 @@ mod set_1 {
                 "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272\
                  a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f"
             ).unwrap();
-            let result = Xor::new("ICE".as_bytes()) .decrypt_str(&ciphertext);
+            let result = RepeatingKeyXor::new("ICE".as_bytes()) .decrypt_str(&ciphertext);
 
             assert_eq!(
                 result.unwrap(), 
@@ -95,6 +95,44 @@ mod set_1 {
             // This decodes the plaintext as UTF-8.
             let result = repeating_key_xor::recover_plaintext(&ciphertext);
             assert!(result.is_ok());
+        }
+    }
+
+    mod problem_7 {
+        use base64;
+
+        use cryptopals::crypto::symmetric::{BlockCipherMode, Aes128Ecb};
+
+        #[test]
+        fn solution() {
+            let key = "YELLOW SUBMARINE".as_bytes();
+            let mut cipher = Aes128Ecb::new(&key).unwrap();
+            let ciphertext = base64::decode(
+                &include_str!("../data/set_1/problem_7.txt").replace("\n", "")
+            ).unwrap();
+            
+            // This decodes the plaintext as UTF-8.
+            let result = cipher.decrypt_str(&ciphertext);
+            assert!(result.is_ok());
+        }
+    }
+
+    mod problem_8 {
+        use hex;
+
+        use cryptopals::attacks::symmetric::ecb_detection;
+
+        #[test]
+        fn solution() {
+            let ciphertexts: Vec<Vec<u8>> =include_str!("../data/set_1/problem_8.txt")
+                .split('\n')
+                .map(|string| hex::decode(string).unwrap())
+                .collect();
+            
+            let result = ciphertexts.iter().any(|ciphertext|
+                ecb_detection::detect_ecb_mode(&ciphertext)
+            );
+            assert!(result);
         }
     }
 }
