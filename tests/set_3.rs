@@ -39,43 +39,6 @@ mod set_3 {
         }
     }
 
-    mod problem_19 {
-        
-        use cryptopals::crypto::symmetric::{
-            StreamCipherMode,
-            Aes128Ctr,
-            Cipher,
-            Aes128,
-            Error
-        };
-        use cryptopals::math::optimization::Minimize;
-        use cryptopals::random_vec;
-
-        pub fn get_ciphertexts() -> Result<Vec<Vec<u8>>, Error> {
-            // It is safe to call unwrap here since each line is valid base64.
-            let mut buffers = include_str!("../data/set_3/problem_19.txt")
-                .split('\n')
-                .map(|string| base64::decode(&string).unwrap())
-                .collect::<Vec<Vec<u8>>>();
-
-            let key = random_vec!(Aes128::KEY_SIZE);
-            let nonce = random_vec!(Aes128::BLOCK_SIZE / 2);
-            for buffer in buffers.iter_mut() {
-                Aes128Ctr::new(&key, &nonce)?.encrypt_mut(buffer)?;
-            }
-            Ok(buffers)
-        }
-
-        #[test]
-        fn solution() {
-            let ciphertexts = get_ciphertexts().unwrap();
-            let length = ciphertexts.iter().minimize(|buffer|
-                buffer.len() 
-            ).1;
-            println!("{:?}", length);
-        }
-    }
-
     mod problem_20 {
         use cryptopals::crypto::symmetric::{
             StreamCipherMode,
@@ -115,6 +78,28 @@ mod set_3 {
         
     }
 
+    mod problem_21 {
+        
+        use cryptopals::crypto;
+        use crypto::random::{
+            SeedableGenerator, 
+            RandomGenerator, 
+            Mt19337
+        };
+
+        #[test]
+        fn solution() {
+            let mut random = Mt19337::new(1);
+            let output = [
+                0x6ac1f425, 0xff4780eb, 0xb8672f8c, 0xeebc1448, 
+                0x00077EFF, 0x20CCC389, 0x4D65aacb, 0xffc11E85
+            ];
+            for i in 0..output.len() {
+                assert_eq!(random.next_u32(), output[i]);
+            }
+        }
+    }
+
     mod problem_22 {
         use rand;
         use rand::Rng;
@@ -122,11 +107,18 @@ mod set_3 {
         use std::time::{Duration, SystemTime};
         
         use cryptopals::crypto;
-        use crypto::random::{RandomGenerator, SeedableGenerator};
-        use crypto::random::mersenne_twister::Mt19337;
+        use crypto::random::{
+            SeedableGenerator, 
+            RandomGenerator, 
+            Mt19337
+        };
         
         use cryptopals::attacks;
-        use attacks::random::mersenne_twister::{recover_timestamp_from, Error, MAXIMUM_DELTA};
+        use attacks::random::mersenne_twister::{
+            recover_timestamp_from, 
+            MAXIMUM_DELTA,
+            Error
+        };
 
         fn get_unix_time() -> Result<u64, Error> {
             // Simulate the passage of [0, MAXIMUM_DELTA) seconds.
@@ -148,8 +140,7 @@ mod set_3 {
 
     mod problem_23 {
         use cryptopals::crypto;
-        use crypto::random::{Random, RandomGenerator};
-        use crypto::random::mersenne_twister::Mt19337;
+        use crypto::random::{Random, Mt19337, RandomGenerator};
         
         use cryptopals::attacks::random::mersenne_twister::recover_state_from;
 
@@ -170,8 +161,7 @@ mod set_3 {
         use std::iter;
 
         use cryptopals::crypto;
-        use crypto::random::SeedableGenerator;
-        use crypto::random::mersenne_twister::Mt19337;
+        use crypto::random::{Mt19337, SeedableGenerator};
         use crypto::symmetric::cipher_modes::StreamCipherMode;
 
         use cryptopals::attacks::random::mersenne_twister::recover_key_from;

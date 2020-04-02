@@ -200,3 +200,5 @@ pub mod mersenne_twister {
         }
     }
 }
+
+pub use mersenne_twister::Mt19337;
