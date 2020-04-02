@@ -92,7 +92,6 @@ pub mod ecb_cbc_detection {
     }
 }
 
-
 pub mod simple_ecb_decryption {
     use rand;
     use rand::Rng;
@@ -153,7 +152,6 @@ pub mod simple_ecb_decryption {
     }
 
 }
-
 
 pub mod ecb_cut_and_paste {
     use std::str::FromStr;
@@ -304,9 +302,9 @@ pub mod cbc_bitflipping_attacks {
         }
 
         pub fn is_admin_user(&mut self, input_buffer: &[u8]) -> Result<bool, Error> {
-            // Note: We cannot use Cipher.decrypt_str here since that would
-            // reject any buffer which didn't decode to valid UTF-8, which
-            // in turn would prevent the attack we are trying to implement.
+            // Note: We cannot use `CipherMode::decrypt_str` here since that would reject any
+            // buffer which didn't decode to valid UTF-8, which in turn would prevent the attack
+            // we are trying to implement.
             let target_buffer = b"admin=true";
             let param_buffer = self.cipher.decrypt_buffer(input_buffer)?;
             for param_slice in param_buffer.split(|&x| x as char == ';') {

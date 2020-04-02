@@ -434,6 +434,8 @@ pub mod cipher_modes {
     impl<C: Cipher, P: PaddingMode> Random for Ecb<C, P> {
         fn random() -> Self {
             let key: Vec<u8> = (0..C::KEY_SIZE).map(|_| { rand::random() }).collect();
+            // It is safe to call unwrap here since `new` only returns an error if the 
+            // key is of the wrong size.
             Self::new(&key).unwrap()
         }
     }
@@ -486,6 +488,8 @@ pub mod cipher_modes {
         fn random() -> Self {
             let key: Vec<u8> = (0..C::KEY_SIZE).map(|_| { rand::random() }).collect();
             let iv: Vec<u8> = (0..C::BLOCK_SIZE).map(|_| { rand::random() }).collect();
+            // It is safe to call unwrap here since `new` only returns an error if the 
+            // key or iv is of the wrong size.
             Self::new(&key, &iv).unwrap()
         }
     }
@@ -600,6 +604,8 @@ pub mod cipher_modes {
         fn random() -> Self {
             let key: Vec<u8> = (0..C::KEY_SIZE).map(|_| { rand::random() }).collect();
             let nonce: Vec<u8> = (0..(C::BLOCK_SIZE / 2)).map(|_| { rand::random() }).collect();
+            // It is safe to call unwrap here since `new` only returns an error if the key or nonce
+            // is of the wrong size.
             Self::new(&key, &nonce).unwrap()
         }
     }
