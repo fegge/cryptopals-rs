@@ -453,12 +453,12 @@ pub mod cipher_modes {
         }
     }
 
-    impl<C: Cipher, P: PaddingMode> Random for Ecb<C, P> {
+    impl<C: Cipher + Random, P: PaddingMode> Random for Ecb<C, P> {
         fn random() -> Self {
-            let key = random_vec!(C::KEY_SIZE);
-            // It is safe to call unwrap here since `new` only returns an error if the 
-            // key is of the wrong size.
-            Self::new(&key).unwrap()
+            Self { 
+                cipher: C::random(), 
+                padding: P::new(C::BLOCK_SIZE) 
+            }
         }
     }
 
@@ -506,13 +506,13 @@ pub mod cipher_modes {
         }
     }
 
-    impl<C: Cipher, P: PaddingMode> Random for Cbc<C, P> {
+    impl<C: Cipher + Random, P: PaddingMode> Random for Cbc<C, P> {
         fn random() -> Self {
-            let key = random_vec!(C::KEY_SIZE);
-            let iv = random_vec!(C::BLOCK_SIZE);
-            // It is safe to call unwrap here since `new` only returns an error if the 
-            // key or iv is of the wrong size.
-            Self::new(&key, &iv).unwrap()
+            Self {
+                cipher: C::random(),
+                padding: P::new(C::BLOCK_SIZE),
+                iv: random_vec!(C::BLOCK_SIZE),
+            }
         }
     }
 
@@ -622,13 +622,15 @@ pub mod cipher_modes {
         }
     }
 
-    impl<C: Cipher> Random for Ctr<C> {
+    impl<C: Cipher + Random> Random for Ctr<C> {
         fn random() -> Self {
-            let key = random_vec!(C::KEY_SIZE);
-            let nonce = random_vec!(C::BLOCK_SIZE / 2);
-            // It is safe to call unwrap here since `new` only returns an error if the key or nonce
-            // is of the wrong size.
-            Self::new(&key, &nonce).unwrap()
+            Self {
+                cipher: C::random(),
+                nonce: random_vec!(C::BLOCK_SIZE / 2),
+                counter: vec![0; C::BLOCK_SIZE / 2],
+                key: Vec::new(),
+                offset: C::BLOCK_SIZE
+            }
         }
     }
     
