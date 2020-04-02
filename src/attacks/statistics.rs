@@ -151,11 +151,9 @@ pub mod repeating_key_xor {
     /// choose the size which minimizes the average Hamming distance per byte. (For details of how
     /// this is done, see `score_key_size`.)
     pub fn recover_plaintext(ciphertext: &[u8], key_size: Option<usize>) -> Result<String, Error> {
-        let key_size = if let Some(size) = key_size { size } else {
-            (1..40).minimize(|&key_size|
-                score_key_size(key_size, ciphertext)
-            ).0
-        };
+        let key_size = key_size.unwrap_or(
+            (1..40).minimize(|&key_size| score_key_size(key_size, ciphertext)).0
+        );
 
         let mut key = Vec::new();
         let distribution = single_byte_xor::get_monogram_statistics();
