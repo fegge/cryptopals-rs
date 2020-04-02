@@ -71,13 +71,14 @@ mod set_2 {
     }
 
     mod problem_13 {
-        use cryptopals::{oracles, attacks};
+        use cryptopals::{oracles, attacks, crypto};
         use oracles::symmetric::ecb_cut_and_paste::{Role, Oracle};
         use attacks::symmetric::ecb_cut_and_paste::get_admin_profile;
+        use crypto::random::Random;
 
         #[test]
         fn solution() {
-            let mut oracle = Oracle::random().unwrap();
+            let mut oracle = Oracle::random();
             let profile = get_admin_profile(|email| oracle.get_profile_for(email)).unwrap();
             
             assert_eq!(oracle.get_role_from(&profile).unwrap(), Role::Admin);
@@ -124,13 +125,14 @@ mod set_2 {
     }
 
     mod problem_16 {
-        use cryptopals::{oracles, attacks};
+        use cryptopals::{oracles, attacks, crypto};
         use oracles::symmetric::cbc_bitflipping_attacks::Oracle;
         use attacks::symmetric::cbc_bitflipping_attacks::get_admin_profile;
+        use crypto::random::Random;
     
         #[test]
         fn solution() {
-            let mut oracle = Oracle::random().unwrap();
+            let mut oracle = Oracle::random();
             // We assume that we know the size of the prefix. Alternatively, we could 
             // guess the size of the prefix and query the oracle once for verification.
             let comment_1 = "comment1=cooking%20MCs";

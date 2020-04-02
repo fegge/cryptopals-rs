@@ -23,6 +23,13 @@ pub trait Random {
     fn random() -> Self;
 }
 
+#[macro_export]
+macro_rules! random_vec {
+    ($size:expr) => {
+        (0..$size).map(|_| { rand::random() }).collect::<Vec<u8>>()
+    }
+}
+
 pub mod mersenne_twister {
     use rand;
     use rand::Rng;

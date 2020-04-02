@@ -14,9 +14,12 @@ impl From<FromUtf8Error> for Error {
 }
 
 pub mod ciphers {
+    use crate::random_vec;
+
     use super::Error;
     use crate::crypto::openssl;
     use crate::crypto::openssl::aes;
+    use crate::crypto::random::Random;
 
     pub type Key = [u8];
 
@@ -86,6 +89,15 @@ pub mod ciphers {
         }
     }
 
+    impl Random for Aes128 {
+        fn random() -> Self {
+            let key = random_vec!(Aes128::KEY_SIZE);
+            // It is safe to call unwrap here since `new` only returns an error if the 
+            // key is of the wrong size.
+            Aes128::new(&key).unwrap()
+        }
+    }
+
     pub struct Aes256 {
         encrypt_key: aes::AES_KEY,
         decrypt_key: aes::AES_KEY
@@ -121,6 +133,15 @@ pub mod ciphers {
         }
     }
 
+    impl Random for Aes256 {
+        fn random() -> Self {
+            let key = random_vec!(Aes256::KEY_SIZE);
+            // It is safe to call unwrap here since `new` only returns an error if the 
+            // key is of the wrong size.
+            Aes256::new(&key).unwrap()
+        }
+    }
+    
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -376,6 +397,7 @@ pub mod cipher_modes {
     use super::ciphers::{Cipher, Key};
     use super::padding_modes::PaddingMode;
 
+    use crate::random_vec;
     use crate::crypto::random::Random;
 
     pub type Iv = [u8];
@@ -433,7 +455,7 @@ pub mod cipher_modes {
 
     impl<C: Cipher, P: PaddingMode> Random for Ecb<C, P> {
         fn random() -> Self {
-            let key: Vec<u8> = (0..C::KEY_SIZE).map(|_| { rand::random() }).collect();
+            let key = random_vec!(C::KEY_SIZE);
             // It is safe to call unwrap here since `new` only returns an error if the 
             // key is of the wrong size.
             Self::new(&key).unwrap()
@@ -486,8 +508,8 @@ pub mod cipher_modes {
 
     impl<C: Cipher, P: PaddingMode> Random for Cbc<C, P> {
         fn random() -> Self {
-            let key: Vec<u8> = (0..C::KEY_SIZE).map(|_| { rand::random() }).collect();
-            let iv: Vec<u8> = (0..C::BLOCK_SIZE).map(|_| { rand::random() }).collect();
+            let key = random_vec!(C::KEY_SIZE);
+            let iv = random_vec!(C::BLOCK_SIZE);
             // It is safe to call unwrap here since `new` only returns an error if the 
             // key or iv is of the wrong size.
             Self::new(&key, &iv).unwrap()
@@ -602,8 +624,8 @@ pub mod cipher_modes {
 
     impl<C: Cipher> Random for Ctr<C> {
         fn random() -> Self {
-            let key: Vec<u8> = (0..C::KEY_SIZE).map(|_| { rand::random() }).collect();
-            let nonce: Vec<u8> = (0..(C::BLOCK_SIZE / 2)).map(|_| { rand::random() }).collect();
+            let key = random_vec!(C::KEY_SIZE);
+            let nonce = random_vec!(C::BLOCK_SIZE / 2);
             // It is safe to call unwrap here since `new` only returns an error if the key or nonce
             // is of the wrong size.
             Self::new(&key, &nonce).unwrap()
@@ -639,7 +661,7 @@ pub mod cipher_modes {
     impl Random for RepeatingKeyXor {
         fn random() -> Self {
             let key_size = rand::thread_rng().gen_range(2, 32);
-            let key: Vec<u8> = (0..key_size).map(|_| { rand::random() }).collect();
+            let key = random_vec!(key_size);
             Self { key, offset: 0 }
         }
     }

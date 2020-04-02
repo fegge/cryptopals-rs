@@ -2,6 +2,8 @@ pub mod ecb_cbc_detection {
     use rand;
     use rand::Rng;
 
+    use crate::crypto::random::Random;
+
     use crate::crypto::symmetric::{
         BlockCipherMode,
         PaddingMode,
@@ -34,15 +36,12 @@ pub mod ecb_cbc_detection {
             rand::thread_rng().gen_bool(0.5)
         }
 
-        fn get_ecb_mode() -> Result<Aes128Ecb, Error> {
-            let key: Vec<u8> = (0..Aes128::KEY_SIZE).map(|_| { rand::random() }).collect();
-            Aes128Ecb::new(&key)
+        fn get_ecb_mode() -> Aes128Ecb {
+            Aes128Ecb::random()
         }
 
-        fn get_cbc_mode() -> Result<Aes128Cbc, Error> {
-            let key: Vec<u8> = (0..Aes128::KEY_SIZE).map(|_| { rand::random() }).collect();
-            let iv: Vec<u8> = (0..Aes128::BLOCK_SIZE).map(|_| { rand::random() }).collect();
-            Aes128Cbc::new(&key, &iv)
+        fn get_cbc_mode() -> Aes128Cbc {
+            Aes128Cbc::random()
         }
 
         fn pad_buffer(buffer: &[u8]) -> Vec<u8> {
@@ -71,11 +70,11 @@ pub mod ecb_cbc_detection {
             output_buffer.resize(output_size + padding_size, 0);
 
             if Self::flip_coin() {
-                let mut cipher_mode = Self::get_ecb_mode()?;
+                let mut cipher_mode = Self::get_ecb_mode();
                 cipher_mode.encrypt_mut(&mut output_buffer, output_size)?;
                 self.cipher_mode = Some(Mode::Ecb);
             } else {
-                let mut cipher_mode = Self::get_cbc_mode()?;
+                let mut cipher_mode = Self::get_cbc_mode();
                 cipher_mode.encrypt_mut(&mut output_buffer, output_size)?;
                 self.cipher_mode = Some(Mode::Cbc);
             }
@@ -105,6 +104,8 @@ pub mod simple_ecb_decryption {
         Pkcs7,
         Error,
     };
+    use crate::random_vec;
+    use crate::crypto::random::Random;
 
     pub struct Oracle {
         cipher: Aes128Ecb,
@@ -114,13 +115,18 @@ pub mod simple_ecb_decryption {
 
     impl Oracle {
         pub fn new(with_random_data: bool) -> Result<Self, Error> {
-            let key: Vec<u8> = (0..Aes128::KEY_SIZE).map(|_| { rand::random() }).collect();
-            let cipher = Aes128Ecb::new(&key)?;
+            let cipher = Aes128Ecb::random();
             
-            let random_size = if with_random_data { rand::thread_rng().gen_range(0, Aes128::BLOCK_SIZE) } else { 0 };
-            let random_data: Vec<u8> = (0..random_size).map(|_| { rand::random() }).collect(); 
+            let random_size = if with_random_data { 
+                rand::thread_rng().gen_range(0, Aes128::BLOCK_SIZE) 
+            } else { 
+                0 
+            };
+            let random_data: Vec<u8> = random_vec!(random_size);
+
             let unknown_data = include_str!("../../data/set_2/problem_12.txt").replace("\n", "");
             let unknown_data = base64::decode(&unknown_data).unwrap();
+            
             Ok(Oracle { cipher, random_data, unknown_data })
         }
         
@@ -253,10 +259,6 @@ pub mod ecb_cut_and_paste {
     }
 
     impl Oracle {
-        pub fn random() -> Result<Self, Error> {
-            Ok(Oracle { cipher: Aes128Ecb::random() })
-        }
-
         pub fn get_profile_for(&mut self, email: &str) -> Result<Vec<u8>, Error> {
             let profile = Profile { email: email.to_owned(), uid: 10, role: Role::User };
             self.cipher.encrypt_str(&profile.to_string()[..]).map_err(Error::from)
@@ -267,6 +269,12 @@ pub mod ecb_cut_and_paste {
                 .decrypt_str(input_buffer)
                 .map_err(Error::from)?;
             Ok(Profile::from_str(&param_str)?.role)
+        }
+    }
+
+    impl Random for Oracle {
+        fn random() -> Self {
+            Oracle { cipher: Aes128Ecb::random() }
         }
     }
 }
@@ -284,10 +292,6 @@ pub mod cbc_bitflipping_attacks {
     }
 
     impl Oracle {
-        pub fn random() -> Result<Self, Error> {
-            Ok(Oracle { cipher: Aes128Cbc::random() })
-        }
-
         pub fn encrypt_user_data(&mut self, user_data: &str) -> Result<Vec<u8>, Error> {
             let comment_1 = "comment1=cooking%20MCs";
             let comment_2 = "comment2=%20like%20a%20pound%20of%20bacon"; 
@@ -315,6 +319,12 @@ pub mod cbc_bitflipping_attacks {
             Ok(false)
         }
     }
+
+    impl Random for Oracle {
+        fn random() -> Self {
+            Oracle { cipher: Aes128Cbc::random() }
+        }
+    }
 }
 
 pub mod cbc_padding_oracle {
@@ -325,7 +335,9 @@ pub mod cbc_padding_oracle {
         Cipher,
         Error,
     };
-    
+    use crate::random_vec;
+    use crate::crypto::random::Random;
+
     use base64;
     use rand;
     use rand::seq::SliceRandom;
@@ -336,13 +348,6 @@ pub mod cbc_padding_oracle {
     }
 
     impl Oracle {
-        pub fn random() -> Result<Self, Error> {
-            let key: Vec<u8> = (0..Aes128::KEY_SIZE).map(|_| { rand::random() }).collect();
-            let iv: Vec<u8> = (0..Aes128::BLOCK_SIZE).map(|_| { rand::random() }).collect();
-            
-            Ok(Oracle { cipher: Aes128Cbc::new(&key, &iv)?, iv })
-        }
-
         /// This method encrypts a random string with a random key and IV, and returns the
         /// encrypted buffer prefixed by the IV. (This is just for convenience since we need
         /// to concatenate the two buffers before we start the attack anyway.)
@@ -365,6 +370,15 @@ pub mod cbc_padding_oracle {
         pub fn verify_padding(&mut self, buffer: &[u8]) -> bool {
             // The only error returned by Aes128Cbc::decrypt_buffer is Error::PaddingError.
             self.cipher.decrypt_buffer(buffer).is_ok()
+        }
+    }
+
+    impl Random for Oracle {
+        fn random() -> Self {
+            let key = random_vec!(Aes128::KEY_SIZE); 
+            let iv = random_vec!(Aes128::BLOCK_SIZE);
+            // It is okay to unwrap here since the key size is known.
+            Oracle { cipher: Aes128Cbc::new(&key, &iv).unwrap(), iv }
         }
     }
 }
