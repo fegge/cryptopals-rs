@@ -145,11 +145,17 @@ pub mod repeating_key_xor {
                 .distance_from(distribution)
             ).0
     }
-
-    pub fn recover_plaintext(ciphertext: &[u8]) -> Result<String, Error> {
-        let key_size = (1..40).minimize(|&key_size|
-            score_key_size(key_size, ciphertext)
-        ).0;
+    
+    /// Recover the plaintext from a `ciphertext` encrypted using repeating key XOR. If the size of
+    /// the repeating key is known, it may be provided as an argument. If the size is not known, we
+    /// choose the size which minimizes the average Hamming distance per byte. (For details of how
+    /// this is done, see `score_key_size`.)
+    pub fn recover_plaintext(ciphertext: &[u8], key_size: Option<usize>) -> Result<String, Error> {
+        let key_size = if let Some(size) = key_size { size } else {
+            (1..40).minimize(|&key_size|
+                score_key_size(key_size, ciphertext)
+            ).0
+        };
 
         let mut key = Vec::new();
         let distribution = single_byte_xor::get_monogram_statistics();
@@ -178,22 +184,25 @@ pub mod fixed_nonce_ctr {
 
         pub fn recover_plaintexts(ciphertexts: &[Vec<u8>]) -> Result<Vec<String>, Error> {
             // Compute the minimum length M and concatenate the corresponding prefixes.
-            let length = ciphertexts.iter().minimize(|buffer|
+            let prefix_length = ciphertexts.iter().minimize(|buffer|
                 buffer.len() 
             ).1;
             let ciphertext = ciphertexts
                 .iter()
-                .map(|buffer| &buffer[..length])
+                .map(|buffer| &buffer[..prefix_length])
                 .collect::<Vec<&[u8]>>()
                 .concat();
 
             // Recover the plaintext which is encrypted using a repeationg key of length M.
-            let plaintext = repeating_key_xor::recover_plaintext(&ciphertext)?;
-            
+            let plaintext = repeating_key_xor::recover_plaintext(
+                &ciphertext, 
+                Some(prefix_length)
+            )?;
+
             // Split the resulting plaintext into chunks of length M and return the result.
             plaintext
                 .as_bytes()
-                .chunks(length)
+                .chunks(prefix_length)
                 .map(|buffer| 
                      String::from_utf8(buffer.to_owned()).map_err(Error::from)
                 )

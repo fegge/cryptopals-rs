@@ -54,8 +54,9 @@ mod set_3 {
 
         pub fn get_ciphertexts() -> Result<Vec<Vec<u8>>, Error> {
             // It is safe to call unwrap here since each line is valid base64.
-            let mut buffers = include_str!("../data/set_3/problem_19.txt")
+            let mut buffers = include_str!("../data/set_3/problem_20.txt")
                 .split('\n')
+                .filter(|string| string.len() > 0)
                 .map(|string| base64::decode(&string).unwrap())
                 .collect::<Vec<Vec<u8>>>();
 

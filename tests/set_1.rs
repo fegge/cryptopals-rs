@@ -93,7 +93,7 @@ mod set_1 {
             ).unwrap();
             
             // This decodes the plaintext as UTF-8.
-            let result = repeating_key_xor::recover_plaintext(&ciphertext);
+            let result = repeating_key_xor::recover_plaintext(&ciphertext, None);
             assert!(result.is_ok());
         }
     }
