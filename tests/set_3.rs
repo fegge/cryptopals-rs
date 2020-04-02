@@ -1,13 +1,14 @@
 mod set_3 {
 
     mod problem_17 {
-        use cryptopals::{oracles, attacks};
+        use cryptopals::{oracles, attacks, crypto};
         use oracles::symmetric::cbc_padding_oracle::Oracle;
         use attacks::symmetric::cbc_padding_oracle::get_plaintext_buffer;
+        use crypto::random::Random;
 
         #[test]
         fn solution() {
-            let mut oracle = Oracle::random().unwrap();
+            let mut oracle = Oracle::random();
             let buffer = oracle.get_encrypted_buffer().unwrap();
             let result = get_plaintext_buffer(
                 &buffer,
@@ -24,7 +25,8 @@ mod set_3 {
         
         use cryptopals::crypto::symmetric::{Aes128Ctr, StreamCipherMode};
 
-        const INPUT: &str = "L77na/nrFsKvynd6HzOoG7GHTLXsTVu9qvY/2syLXzhPweyyMTJULu/6/kXX0KSvoOLSFQ==";
+        const INPUT: &str = 
+            "L77na/nrFsKvynd6HzOoG7GHTLXsTVu9qvY/2syLXzhPweyyMTJULu/6/kXX0KSvoOLSFQ==";
 
         #[test]
         fn solution() {
@@ -35,6 +37,82 @@ mod set_3 {
             let result = cipher.decrypt_str(&input);
             assert!(result.is_ok());
         }
+    }
+
+    mod problem_19 {
+        
+        use cryptopals::crypto::symmetric::{
+            StreamCipherMode,
+            Aes128Ctr,
+            Cipher,
+            Aes128,
+            Error
+        };
+        use cryptopals::math::optimization::Minimize;
+        use cryptopals::random_vec;
+
+        pub fn get_ciphertexts() -> Result<Vec<Vec<u8>>, Error> {
+            // It is safe to call unwrap here since each line is valid base64.
+            let mut buffers = include_str!("../data/set_3/problem_19.txt")
+                .split('\n')
+                .map(|string| base64::decode(&string).unwrap())
+                .collect::<Vec<Vec<u8>>>();
+
+            let key = random_vec!(Aes128::KEY_SIZE);
+            let nonce = random_vec!(Aes128::BLOCK_SIZE / 2);
+            for buffer in buffers.iter_mut() {
+                Aes128Ctr::new(&key, &nonce)?.encrypt_mut(buffer)?;
+            }
+            Ok(buffers)
+        }
+
+        #[test]
+        fn solution() {
+            let ciphertexts = get_ciphertexts().unwrap();
+            let length = ciphertexts.iter().minimize(|buffer|
+                buffer.len() 
+            ).1;
+            println!("{:?}", length);
+        }
+    }
+
+    mod problem_20 {
+        use cryptopals::crypto::symmetric::{
+            StreamCipherMode,
+            Aes128Ctr,
+            Cipher,
+            Aes128,
+            Error
+        };
+        use cryptopals::random_vec;
+
+        use cryptopals::attacks::statistics;
+        use statistics::fixed_nonce_ctr::using_statistics;
+
+        pub fn get_ciphertexts() -> Result<Vec<Vec<u8>>, Error> {
+            // It is safe to call unwrap here since each line is valid base64.
+            let mut buffers = include_str!("../data/set_3/problem_19.txt")
+                .split('\n')
+                .map(|string| base64::decode(&string).unwrap())
+                .collect::<Vec<Vec<u8>>>();
+
+            let key = random_vec!(Aes128::KEY_SIZE);
+            let nonce = random_vec!(Aes128::BLOCK_SIZE / 2);
+            for buffer in buffers.iter_mut() {
+                Aes128Ctr::new(&key, &nonce)?.encrypt_mut(buffer)?;
+            }
+            Ok(buffers)
+        }
+
+        #[test]
+        fn solution() {
+            let ciphertexts = get_ciphertexts().unwrap();
+            
+            // This decodes the plaintext as UTF-8.
+            let result = using_statistics::recover_plaintexts(&ciphertexts);
+            assert!(result.is_ok());
+        }
+        
     }
 
     mod problem_22 {

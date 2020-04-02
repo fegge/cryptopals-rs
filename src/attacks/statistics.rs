@@ -1,22 +1,32 @@
+use std::string::FromUtf8Error;
+
+use crate::crypto::symmetric;
+
+#[derive(Debug)]
+pub enum Error {
+    RecoveryError,
+    DecodingError,
+}
+
+impl std::convert::From<FromUtf8Error> for Error {
+    fn from(_: FromUtf8Error) -> Self {
+        Error::DecodingError
+    }
+}
+
+impl std::convert::From<symmetric::Error> for Error {
+    fn from(_: symmetric::Error) -> Self {
+        Error::RecoveryError
+    }
+}
+
 pub mod single_byte_xor {
-    use std::string::FromUtf8Error;
+    use super::Error;
 
     use crate::dist;
     use crate::math::optimization::Minimize;
     use crate::math::statistics::Distribution;
     
-    #[derive(Debug)]
-    pub enum Error {
-        RecoveryError,
-        DecodingError
-    }
-
-    impl std::convert::From<FromUtf8Error> for Error {
-        fn from(_: FromUtf8Error) -> Self {
-            Error::DecodingError
-        }
-    }
-
     // English lowercase monogram statistics.
     pub fn get_monogram_statistics() -> Distribution<u8> {
         dist!(
@@ -77,8 +87,7 @@ pub mod single_byte_xor {
 }
 
 pub mod detect_single_byte_xor {
-    use super::single_byte_xor;
-    use single_byte_xor::Error;
+    use super::{single_byte_xor, Error};
     use crate::math::optimization::Minimize;
     use crate::math::statistics::Distribution;
 
@@ -100,33 +109,13 @@ pub mod detect_single_byte_xor {
 }
 
 pub mod repeating_key_xor {
-    use std::string::FromUtf8Error;
-    
-    use super::single_byte_xor;
+    use super::{single_byte_xor, Error};
     
     use crate::math::optimization::Minimize;
     use crate::math::statistics::Distribution;
     
     use crate::crypto::symmetric;
     use symmetric::{RepeatingKeyXor, StreamCipherMode};
-
-    #[derive(Debug)]
-    pub enum Error {
-        RecoveryError,
-        DecodingError,
-    }
-
-    impl std::convert::From<FromUtf8Error> for Error {
-        fn from(_: FromUtf8Error) -> Self {
-            Error::DecodingError
-        }
-    }
-
-    impl std::convert::From<symmetric::Error> for Error {
-        fn from(_: symmetric::Error) -> Self {
-            Error::RecoveryError
-        }
-    }
 
     fn hamming_distance(lhs: &[u8], rhs: &[u8]) -> u32 {
         lhs.iter().zip(rhs)
@@ -175,5 +164,40 @@ pub mod repeating_key_xor {
         }
         let plaintext = RepeatingKeyXor::new(&key).decrypt_buffer(ciphertext)?;
         Ok(String::from_utf8(plaintext)?)
+    }
+}
+
+pub mod fixed_nonce_ctr {
+
+    pub mod using_substitutions {
+    }
+
+    pub mod using_statistics {
+        use super::super::{repeating_key_xor, Error};
+        use crate::math::optimization::Minimize;
+
+        pub fn recover_plaintexts(ciphertexts: &[Vec<u8>]) -> Result<Vec<String>, Error> {
+            // Compute the minimum length M and concatenate the corresponding prefixes.
+            let length = ciphertexts.iter().minimize(|buffer|
+                buffer.len() 
+            ).1;
+            let ciphertext = ciphertexts
+                .iter()
+                .map(|buffer| &buffer[..length])
+                .collect::<Vec<&[u8]>>()
+                .concat();
+
+            // Recover the plaintext which is encrypted using a repeationg key of length M.
+            let plaintext = repeating_key_xor::recover_plaintext(&ciphertext)?;
+            
+            // Split the resulting plaintext into chunks of length M and return the result.
+            plaintext
+                .as_bytes()
+                .chunks(length)
+                .map(|buffer| 
+                     String::from_utf8(buffer.to_owned()).map_err(Error::from)
+                )
+                .collect()
+        }
     }
 }
