@@ -547,23 +547,27 @@ pub mod cipher_modes {
 
         /// Decrypt a mutable buffer in-place.
         fn decrypt_mut<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error>;
-        
+      
+        /// Encrypt input buffer.
         fn encrypt_buffer(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
             let mut output_buffer = input_buffer.to_vec();
             self.encrypt_mut(&mut output_buffer)?;
             Ok(output_buffer)
         }
 
+        /// Decrypt input buffer.
         fn decrypt_buffer(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
             let mut output_buffer = input_buffer.to_vec();
             self.decrypt_mut(&mut output_buffer)?;
             Ok(output_buffer)
         }
 
+        /// Encrypt input string.
         fn encrypt_str(&mut self, input_str: &str) -> Result<Vec<u8>, Error> {
             self.encrypt_buffer(input_str.as_bytes())
         }
 
+        /// Decrypt input and interpret the result as an UTF-8 string.
         fn decrypt_str(&mut self, input_buffer: &[u8]) -> Result<String, Error> {
             let output_buffer = self.decrypt_buffer(input_buffer)?;
             String::from_utf8(output_buffer).map_err(Error::from)
@@ -571,6 +575,7 @@ pub mod cipher_modes {
     }
     
     /// Generic implementation of `StreamCipherMode` for implementaions of `Iterator<Item=u8>`.
+    /// This allows us to implement `Iterator<Item=u8>` and get `StreamCipherMode` for free.
     impl<I: Iterator<Item=u8>> StreamCipherMode for I {
         fn encrypt_mut<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
             for (x, y) in buffer.iter_mut().zip(self) {
@@ -582,6 +587,17 @@ pub mod cipher_modes {
         fn decrypt_mut<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], Error> {
             self.encrypt_mut(buffer)
         }
+    }
+
+    /// A trait for seekable stream ciphers. Calling `seek` should allow the user to seek `length`
+    /// bytes into the keystream.
+    ///
+    /// # Note
+    /// 
+    /// Multiple consecutive calls to `seek` with lengths `l1`, ..., `ln` should behave as a single
+    /// call to `seek` with length `l1 + ... + ln`.
+    pub trait SeekableStreamCipherMode: StreamCipherMode {
+        fn seek(&mut self, length: usize);
     }
 
     /// Generic CTR-mode type.
@@ -618,7 +634,6 @@ pub mod cipher_modes {
         fn update_key(&mut self) {
             self.key = [&self.nonce[..], &self.counter[..]].concat();
             self.cipher.encrypt_mut(&mut self.key);
-            self.update_counter();
         }
     }
 
@@ -639,12 +654,25 @@ pub mod cipher_modes {
 
         fn next(&mut self) -> Option<u8> {
             if self.offset >= C::BLOCK_SIZE {
-                self.update_key();
                 self.offset = 0;
+                self.update_key();
+                self.update_counter();
             }
             let offset = self.offset;
             self.offset += 1;
             Some(self.key[offset])
+        }
+    }
+
+    impl<C: Cipher> SeekableStreamCipherMode for Ctr<C> {
+        fn seek(&mut self, length: usize) {
+            let counter_updates = (self.offset + length) / C::BLOCK_SIZE;
+            self.offset = (self.offset + length) % C::BLOCK_SIZE;
+            
+            for _ in 0..counter_updates {
+                self.update_counter();
+            }
+            self.update_key();
         }
     }
 
@@ -847,6 +875,23 @@ pub mod cipher_modes {
             let buffer = CTR_CIPHERTEXT.to_owned();
             let result = cipher.decrypt_buffer(&buffer);
             assert_eq!(&result.unwrap(), &PLAINTEXT);
+        }
+
+        #[test]
+        fn seekable_ctr_mode() {
+            let mut cipher1 = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
+            let mut cipher2 = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
+            let lengths = random_vec!(16);
+            let mut total_length = 0;
+            for length in lengths {
+                cipher1.seek(length as usize);
+                total_length += length as usize;
+            }
+            cipher2.seek(total_length);
+            for (x, y) in cipher1.zip(cipher2).take(16) {
+                println!("{}, {}", x, y);
+                assert_eq!(x, y);
+            }
         }
 
         #[test] 
