@@ -382,3 +382,46 @@ pub mod cbc_padding_oracle {
         }
     }
 }
+
+
+pub mod random_access_read_write {
+    use crate::crypto::symmetric::{
+        Error,
+        Aes128Ctr,
+        StreamCipherMode,
+        SeekableStreamCipherMode,
+    };
+    use crate::crypto::random::Random;
+
+    pub struct Oracle {
+        cipher: Aes128Ctr
+    }
+
+    impl Oracle {
+        pub fn encrypt_buffer(&mut self, buffer: &[u8]) -> Result<Vec<u8>, Error> {
+            self.cipher.seek(0);
+            self.cipher.encrypt_buffer(buffer)
+        }
+
+        pub fn edit_buffer(
+            &mut self, 
+            encrypted_buffer: &mut [u8], 
+            offset: usize, 
+            plaintext_buffer: &[u8]
+        ) -> Result<(), Error> {
+            let begin = offset;
+            let end = offset + plaintext_buffer.len();
+            self.cipher.seek(begin);
+            
+            encrypted_buffer[begin..end].copy_from_slice(plaintext_buffer);
+            self.cipher.encrypt_mut(&mut encrypted_buffer[begin..end])?;
+            Ok(())
+        }
+    }
+
+    impl Random for Oracle {
+        fn random() -> Self {
+            Oracle { cipher: Aes128Ctr::random() }
+        }
+    }
+}
