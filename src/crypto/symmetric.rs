@@ -390,6 +390,8 @@ pub use padding_modes::{
 };
 
 pub mod cipher_modes {
+    use std::mem;
+
     use rand;
     use rand::Rng;
 
@@ -590,12 +592,8 @@ pub mod cipher_modes {
     }
 
     /// A trait for seekable stream ciphers. Calling `seek` should allow the user to seek `length`
-    /// bytes into the keystream.
-    ///
-    /// # Note
-    /// 
-    /// Multiple consecutive calls to `seek` with lengths `l1`, ..., `ln` should behave as a single
-    /// call to `seek` with length `l1 + ... + ln`.
+    /// bytes into the keystream. (Calling `seek` with `length` = 0 should restore the keystream to
+    /// it's initial state.)
     pub trait SeekableStreamCipherMode: StreamCipherMode {
         fn seek(&mut self, length: usize);
     }
@@ -622,7 +620,8 @@ pub mod cipher_modes {
                 offset: C::BLOCK_SIZE
             })
         }
-        
+       
+        // The counter is updated as a little-endian big integer with 8-bit limbs.
         fn update_counter(&mut self) {
             for i in 0..self.counter.len() {
                 let (result, overflow) = self.counter[i].overflowing_add(1);
@@ -664,15 +663,25 @@ pub mod cipher_modes {
         }
     }
 
+    /// Generic implementation of the `SeekableStreamCipherMode` for `Ctr<C>`.
     impl<C: Cipher> SeekableStreamCipherMode for Ctr<C> {
         fn seek(&mut self, length: usize) {
-            let counter_updates = (self.offset + length) / C::BLOCK_SIZE;
-            self.offset = (self.offset + length) % C::BLOCK_SIZE;
-            
-            for _ in 0..counter_updates {
-                self.update_counter();
+            self.offset = length % C::BLOCK_SIZE;
+            let updates = length / C::BLOCK_SIZE;
+            if C::BLOCK_SIZE / 2 <= mem::size_of::<usize>() {
+                let copy_size = self.counter.len();
+                self.counter.copy_from_slice(
+                    &updates.to_le_bytes()[..copy_size]
+                );
+            } else {
+                let copy_size = mem::size_of::<usize>();
+                self.counter[..copy_size].copy_from_slice(
+                    &updates.to_le_bytes()
+                );
+                self.counter[copy_size..].iter_mut().for_each(|x| *x = 0);
             }
             self.update_key();
+            self.update_counter();
         }
     }
 
@@ -879,17 +888,24 @@ pub mod cipher_modes {
 
         #[test]
         fn seekable_ctr_mode() {
-            let mut cipher1 = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
+            let length = rand::thread_rng().gen_range(0, 1024);
+
+            // Seek length bytes and verify output.
+            let cipher1 = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
             let mut cipher2 = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
-            let lengths = random_vec!(16);
-            let mut total_length = 0;
-            for length in lengths {
-                cipher1.seek(length as usize);
-                total_length += length as usize;
+            
+            cipher2.seek(length);
+            for (x, y) in cipher1.skip(length).zip(cipher2).take(16) {
+                assert_eq!(x, y);
             }
-            cipher2.seek(total_length);
+            
+            // Seek to 0 and verify output.
+            let mut cipher1 = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
+            let cipher2 = Aes128Ctr::new(&RAW_KEY, &RAW_NONCE).unwrap();
+            
+            for _ in 0..length { cipher1.next(); }
+            cipher1.seek(0);
             for (x, y) in cipher1.zip(cipher2).take(16) {
-                println!("{}, {}", x, y);
                 assert_eq!(x, y);
             }
         }
@@ -925,6 +941,7 @@ pub mod cipher_modes {
 pub use cipher_modes::{
     BlockCipherMode,
     StreamCipherMode,
+    SeekableStreamCipherMode,
     RepeatingKeyXor,
     Ecb,
     Cbc,
