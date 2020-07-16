@@ -425,3 +425,47 @@ pub mod random_access_read_write {
         }
     }
 }
+
+pub mod ctr_bitflipping_attacks {
+    use crate::crypto::symmetric::{
+        Error,
+        Aes128Ctr,
+        StreamCipherMode,
+        SeekableStreamCipherMode,
+    };
+    use crate::crypto::random::Random;
+   
+    pub struct Oracle {
+        cipher: Aes128Ctr
+    }
+
+    impl Oracle {
+        pub fn encrypt_user_data(&mut self, user_data: &str) -> Result<Vec<u8>, Error> {
+            let comment_1 = "comment1=cooking%20MCs";
+            let comment_2 = "comment2=%20like%20a%20pound%20of%20bacon"; 
+           
+            let param_str = format!(
+                "{};userdata={};{}",
+                comment_1,
+                user_data.replace(";", "%3B").replace("=", "%3D"),
+                comment_2
+            );
+            self.cipher.seek(0);
+            self.cipher.encrypt_str(&param_str)
+        }
+
+        pub fn is_admin_user(&mut self, input_buffer: &[u8]) -> Result<bool, Error> {
+            self.cipher.seek(0);
+            let param_buffer = self.cipher.decrypt_str(input_buffer)?;
+            Ok(param_buffer.split(';').any(|param_slice|
+                param_slice == "admin=true"
+            ))
+        }
+    }
+
+    impl Random for Oracle {
+        fn random() -> Self {
+            Oracle { cipher: Aes128Ctr::random() }
+        }
+    }
+}

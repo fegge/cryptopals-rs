@@ -22,9 +22,28 @@ mod set_4 {
                 .zip(keystream.iter())
                 .map(|(c, k)| c ^ k)
                 .collect();
-            println!("{:?}", result);
             assert_eq!(result, plaintext);
         }
     }
 
+    mod problem_26 {
+        use cryptopals::{oracles, attacks, crypto};
+        use oracles::symmetric::ctr_bitflipping_attacks::Oracle;
+        use attacks::symmetric::ctr_bitflipping_attacks::get_admin_profile;
+        use crypto::random::Random;
+    
+        #[test]
+        fn solution() {
+            let mut oracle = Oracle::random();
+            // We assume that we know the size of the prefix. Alternatively, we could 
+            // guess the size of the prefix and query the oracle once for verification.
+            let comment_1 = "comment1=cooking%20MCs";
+            let result = get_admin_profile(
+                comment_1.len(), 
+                &mut |buffer| { oracle.encrypt_user_data(buffer) }
+            );
+            assert!(result.is_ok());
+            assert_eq!(oracle.is_admin_user(&result.unwrap()), Ok(true));
+        }
+    }
 }

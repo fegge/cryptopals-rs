@@ -364,3 +364,42 @@ pub mod cbc_padding_oracle {
         Ok(solution)
     }
 }
+
+pub mod ctr_bitflipping_attacks {
+    use crate::crypto::symmetric;
+    use symmetric::ciphers::{Cipher, Aes128};
+
+    #[derive(Debug)]
+    pub enum Error {
+        CipherError,
+        RecoveryError
+    }
+
+    impl From<symmetric::Error> for Error {
+        fn from(_: symmetric::Error) -> Error {
+            Error::CipherError
+        }
+    }
+
+    /// We encrypt a sequence of `A`s of the same size as the target string. We can then simply XOR
+    /// each byte of the resulting ciphertext with the difference between the current plaintext
+    /// byte (i.e. `A`), and the required target plaintext byte to obtain a ciphertext which
+    /// decrypts to the target string.
+    pub fn get_admin_profile<Oracle>(
+        prefix_size: usize,
+        encrypt_buffer: &mut Oracle
+    ) -> Result<Vec<u8>, Error> where
+        Oracle: FnMut(&str) -> Result<Vec<u8>, symmetric::Error>
+    {
+        let target_str = ";admin=true;";
+        let user_str = std::iter::repeat("A")
+            .take(target_str.len())
+            .collect::<String>();
+        let mut result = encrypt_buffer(&user_str)?;
+        let offset = prefix_size - (prefix_size % Aes128::BLOCK_SIZE);
+        for (index, byte) in target_str.as_bytes().iter().enumerate() {
+            result[offset + 16 + index] ^= b'A' ^ byte;
+        }
+        Ok(result)
+    }
+}
