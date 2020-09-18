@@ -156,7 +156,7 @@ pub mod sha {
         fn process_chunk(state: &mut [W32; 5], chunk: &[u8]) {
             let mut words: [W32; Sha1::NOF_ROUNDS] = [Wrapping(0); Sha1::NOF_ROUNDS];
             for i in 0..16 {
-                words[i] = W32::from_be_bytes(&chunk[(4 * i)..(4 * i + 4)]);
+                words[i] = W32::from_be_bytes(&chunk[4 * i .. 4 * i + 4]);
             }
             for i in 16..Sha1::NOF_ROUNDS {
                 words[i] = (words[i - 3] ^ words[i - 8] ^ words[i - 14] ^ words[i - 16]).left_rotate(1);
@@ -206,8 +206,8 @@ pub mod sha {
 
             // Handle cached partial chunk.
             if self.chunk_size > 0 {
-                let copy_size = cmp::min(64 - self.chunk_size, buffer.len());
-                self.chunk[self.chunk_size..].copy_from_slice(&buffer[..copy_size]);
+                let copy_size = cmp::min(Sha1::CHUNK_SIZE - self.chunk_size, buffer.len());
+                self.chunk[self.chunk_size .. self.chunk_size + copy_size].copy_from_slice(&buffer[..copy_size]);
                 self.chunk_size += copy_size;
                 buffer_offset = copy_size;
             }
@@ -246,7 +246,7 @@ pub mod sha {
             };
             let mut padding = vec![0; padding_size];
             padding[0] = 0x80;
-            padding[(padding_size - 8)..].copy_from_slice(&(8 * self.message_size as u64).to_be_bytes());
+            padding[padding_size - 8 ..].copy_from_slice(&(8 * self.message_size as u64).to_be_bytes());
             
             self.update(&padding);
             assert!(self.chunk_size == 0);
@@ -275,6 +275,16 @@ pub mod sha {
         fn known_output() {
             let digest = Sha1::digest("The quick brown fox jumps over the lazy dog");
             assert_eq!(digest.to_str(), "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12");
+        }
+        
+        #[test]
+        fn chunked_update() {
+            let mut hash = Sha1::new();
+            for _ in 0..256 {
+                hash.update(b"abc");
+            }
+            let digest = hash.finalize();
+            assert_eq!(digest.to_str(), "87f34c2186611148979f61f0b340360f815a27a2");
         }
     }
 }
