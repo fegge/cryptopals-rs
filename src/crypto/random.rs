@@ -39,21 +39,24 @@ pub mod mersenne_twister {
     use std::num::Wrapping;
 
     use super::{Random, RandomGenerator, SeedableGenerator};
-    
+   
+    type W32 = Wrapping<u32>;
+
+
     /// Standard 32-bit Mersenne twister.
     pub struct Mt19337 {
-        state: [Wrapping<u32>; 624],
+        state: [W32; 624],
         index: usize
     }
 
     impl Mt19337 {
         const SIZE: usize = 624;
-        const SEED_MULT: Wrapping<u32> = Wrapping(0x6c07_8965);
-        const UPPER_MASK: Wrapping<u32> = Wrapping(0x8000_0000);
-        const LOWER_MASK: Wrapping<u32> = Wrapping(0x7fff_ffff);
-        const FIRST_MASK: Wrapping<u32> = Wrapping(0x9d2c_5680);
-        const SECOND_MASK: Wrapping<u32> = Wrapping(0xefc6_0000);
-        const TWIST_CONST: Wrapping<u32> = Wrapping(0x9908_b0df);
+        const SEED_MULT: W32 = Wrapping(0x6c07_8965);
+        const UPPER_MASK: W32 = Wrapping(0x8000_0000);
+        const LOWER_MASK: W32 = Wrapping(0x7fff_ffff);
+        const FIRST_MASK: W32 = Wrapping(0x9d2c_5680);
+        const SECOND_MASK: W32 = Wrapping(0xefc6_0000);
+        const TWIST_CONST: W32 = Wrapping(0x9908_b0df);
 
         pub fn from_state(state: [u32; Self::SIZE], index: usize) -> Self {
             let mut wrapping_state = [Wrapping(0); Self::SIZE];
