@@ -1,4 +1,3 @@
-
 #[derive(Debug)]
 pub enum Error {
     InvalidKeySize 
@@ -7,6 +6,7 @@ pub enum Error {
 
 pub mod aes {
     use libc::{c_int, c_uchar};
+    use std::fmt;
     use super::Error;
 
     const AES_MAX_NR: usize = 14;
@@ -14,7 +14,7 @@ pub mod aes {
 
     #[repr(C)]
     pub struct AES_KEY {
-        rd_key: [u32; 4 *(AES_MAX_NR + 1)],
+        rd_key: [u32; 4 * (AES_MAX_NR + 1)],
         rounds: i32,    
     }
 
@@ -38,6 +38,23 @@ pub mod aes {
                 rounds: 0
             }
             
+        }
+    }
+
+    impl Clone for AES_KEY {
+        fn clone(&self) -> Self {
+            let mut rd_key = [0; 4 * (AES_MAX_NR + 1)];
+            rd_key.copy_from_slice(&self.rd_key);
+            AES_KEY { rd_key, rounds: self.rounds }
+        }
+    }
+
+    impl fmt::Debug for AES_KEY {
+        fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.debug_struct("AES_KEY")
+                .field("rd_key", &self.rd_key.to_vec())
+                .field("rounds", &self.rounds)
+                .finish()
         }
     }
 

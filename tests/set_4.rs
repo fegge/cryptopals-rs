@@ -46,4 +46,39 @@ mod set_4 {
             assert_eq!(oracle.is_admin_user(&result.unwrap()), Ok(true));
         }
     }
+
+    mod problem_27 {
+        use cryptopals::crypto::random::Random;
+        use cryptopals::oracles::symmetric::cbc_with_key_as_iv::Oracle;
+        use cryptopals::attacks::symmetric::cbc_with_key_as_iv::get_key;
+        
+        #[test]
+        fn solution() {
+            let mut sender = Oracle::random();
+            let mut receiver = sender.clone();
+
+            let key = get_key(
+                &mut |string| { sender.encrypt_str(string) },
+                &mut |buffer| { receiver.decrypt_str(buffer) }
+            );
+            assert!(sender.verify_key(&key.unwrap()), true);
+        }
+    }
+
+    mod problem_28 {
+        use cryptopals::crypto::hash::{Mac, Sha1NaiveMac};
+
+        #[test]
+        fn solution() {
+            let first_mac = Sha1NaiveMac::digest(
+                "This is the first key",
+                "This is the first message"
+            );
+            let second_mac = Sha1NaiveMac::digest(
+                "This is the second key",
+                "This is the second message"
+            );
+            assert_ne!(first_mac, second_mac);
+        }
+    }
 }

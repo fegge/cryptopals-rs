@@ -35,7 +35,7 @@ impl WrappingExt for W32 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct MessageDigest(Vec<u8>);
 
 impl MessageDigest {
@@ -43,7 +43,7 @@ impl MessageDigest {
     pub fn len(&self) -> usize {
         self.0.len()
     }
-    
+ 
     pub fn to_str(&self) -> String {
         hex::encode(&self.0)
     }
@@ -70,12 +70,31 @@ pub trait HashFunction where Self: Sized {
     /// Hash the given buffer. Returns `self`.
     fn update(&mut self, buffer: &[u8]) -> &mut Self;
 
-    /// Should return a vector of length `Self::DIGEST_SIZE`.
+    /// Should return a `MessageDigest` of length `Self::DIGEST_SIZE`.
     fn finalize(&mut self) -> MessageDigest;
 
     /// Returns the digest of the given buffer.
     fn digest<B: AsRef<[u8]>>(buffer: B) -> MessageDigest {
         Self::new()
+            .update(buffer.as_ref())
+            .finalize()
+    }
+}
+
+pub trait Mac where Self: Sized {
+    /// The output size.
+    const TAG_SIZE: usize;
+
+    fn new(key: &[u8]) -> Self;
+
+    /// Hash the given buffer. Returns `self`.
+    fn update(&mut self, buffer: &[u8]) -> &mut Self;
+
+    /// Should return a `MessageTag` of length `Self::TAG_SIZE`.
+    fn finalize(&mut self) -> MessageDigest;
+
+    fn digest<K: AsRef<[u8]>, B: AsRef<[u8]>>(key: K, buffer: B) -> MessageDigest {
+        Self::new(key.as_ref())
             .update(buffer.as_ref())
             .finalize()
     }
@@ -89,7 +108,7 @@ pub mod sha {
     use super::{W32, WrappingExt, HashFunction, MessageDigest};
 
     /// A byte oriented implementation of the SHA-1 hash function.
-    struct Sha1 {
+    pub struct Sha1 {
         state: [W32; 5],
         chunk: [u8; 64],
         chunk_size: usize,
@@ -109,7 +128,7 @@ pub mod sha {
                 Wrapping(state[4]),
             ];
             Self { 
-                state: state,
+                state,
                 chunk: [0; Sha1::CHUNK_SIZE],
                 chunk_size: 0,
                 message_size: 0
@@ -288,3 +307,40 @@ pub mod sha {
         }
     }
 }
+
+pub mod mac {
+    use super::{HashFunction, Mac, MessageDigest};
+
+    pub struct NaiveMac<H: HashFunction> {
+        hash: H
+    }
+
+    /// A Hash-based Mac which is vulnerable to length extension attacks.
+    impl<H: HashFunction> Mac for NaiveMac<H> {
+        /// The output size.
+        const TAG_SIZE: usize = H::DIGEST_SIZE;
+
+        fn new(key: &[u8]) -> Self {
+            let mut hash: H = H::new();
+            hash.update(&key);
+            Self { hash }
+        }
+
+        /// Hash the given buffer. Returns `self`.
+        fn update(&mut self, buffer: &[u8]) -> &mut Self {
+            self.hash.update(buffer);
+            self
+        }
+
+        /// Should return a `MessageTag` of length `Self::TAG_SIZE`.
+        fn finalize(&mut self) -> MessageDigest {
+            self.hash.finalize()
+        }
+    }
+}
+
+// Re-export `Sha1` and `NaiveMac`.
+pub use sha::Sha1;
+pub use mac::NaiveMac;
+
+pub type Sha1NaiveMac = NaiveMac<Sha1>;

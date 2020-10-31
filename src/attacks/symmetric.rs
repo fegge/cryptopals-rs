@@ -403,3 +403,59 @@ pub mod ctr_bitflipping_attacks {
         Ok(result)
     }
 }
+
+pub mod cbc_with_key_as_iv {
+    use crate::crypto::symmetric::{Aes128, Cipher};
+    use crate::oracles::symmetric::cbc_with_key_as_iv as oracle;
+
+    #[derive(Debug)]
+    pub enum Error {
+        CipherError,
+        RecoveryError
+    }
+
+    impl From<oracle::Error> for Error {
+        fn from(_: oracle::Error) -> Error {
+            Error::CipherError
+        }
+    }
+    
+    pub fn get_key<Encrypt, Decrypt>(encrypt: &mut Encrypt, decrypt: &mut Decrypt) -> Result<Vec<u8>, Error>
+        where
+            Encrypt: FnMut(&str) -> Result<Vec<u8>, oracle::Error>,
+            Decrypt: FnMut(&[u8]) -> Result<Vec<u8>, oracle::Error>,
+
+    {
+        // Encrypt a plaintext which encrypts to 3 blocks C_0, C_1, C_2.
+        let plaintext = "00000000000000001111111111111111";
+        let mut blocks: Vec<Vec<u8>> = encrypt(&plaintext)
+            .map_err(Error::from)?
+            .chunks(Aes128::BLOCK_SIZE)
+            .map(|block| block.to_vec())
+            .collect();
+        
+        // Decrypt C_0, 0, C_0 to get P_0, P_1, P_2. 
+        let mut ciphertext = blocks[0].clone();
+        ciphertext.append(&mut vec![0; Aes128::BLOCK_SIZE]);
+        ciphertext.append(&mut blocks[0]);
+        let plaintext = match decrypt(&ciphertext) {
+            Ok(result) => Ok(result),
+            // This is the expected case since we've rejiggered the ciphertext
+            // which ahould propagate and break the plaintext PKCS7 padding.
+            Err(oracle::Error::PaddingError(result)) => Ok(result),
+            Err(oracle::Error::DecodingError(result)) => Ok(result),
+            Err(_) => Err(Error::RecoveryError),
+        }?;
+        let blocks: Vec<Vec<u8>> = plaintext
+            .chunks(Aes128::BLOCK_SIZE)
+            .map(|block| block.to_vec())
+            .collect();
+        
+        // Now, from the definition of CBC, the key is given by P_0 ^ P_2.
+        let mut key = Vec::new();
+        for i in 0..Aes128::BLOCK_SIZE {
+            key.push(blocks[0][i] ^ blocks[2][i]);
+        }
+        Ok(key)
+    }
+}

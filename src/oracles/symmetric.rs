@@ -469,3 +469,87 @@ pub mod ctr_bitflipping_attacks {
         }
     }
 }
+
+pub mod cbc_with_key_as_iv {
+    use std::fmt;
+    use std::error;
+
+    use crate::random_vec;
+    use crate::crypto::symmetric;
+    use crate::crypto::random::Random;
+    use crate::crypto::symmetric::{Aes128, Cipher, Aes128Cbc, BlockCipherMode};
+   
+    #[derive(Debug)]
+    pub enum Error {
+        CipherError(symmetric::Error),
+        PaddingError(Vec<u8>),
+        DecodingError(Vec<u8>),
+    }
+
+    impl fmt::Display for Error {
+        fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            write!(formatter, "{:?}", self)
+        }
+    }
+
+    impl error::Error for Error {
+        fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+            match self {
+                Error::CipherError(error) => Some(error),
+                Error::PaddingError(_) => None,
+                Error::DecodingError(_) => None,
+            }
+        }
+    }
+
+    impl From<symmetric::Error> for Error {
+        fn from(error: symmetric::Error) -> Self {
+            Error::CipherError(error)
+        }
+    }
+    
+    #[derive(Clone)]
+    pub struct Oracle {
+        key: Vec<u8>,
+        cipher: Aes128Cbc
+    }
+    
+    impl Oracle {
+        pub fn encrypt_str(&mut self, input_string: &str) -> Result<Vec<u8>, Error> {
+            self.cipher
+                .encrypt_str(input_string)
+                .map_err(Error::from)
+        }
+
+        pub fn decrypt_str(&mut self, input_buffer: &[u8]) -> Result<Vec<u8>, Error> {
+            // We have to handle the case when unpadding fails explicitly here
+            // since we want to return the ciphertext together with the error.
+            let mut output_buffer = input_buffer.to_vec();
+            match self.cipher.decrypt_mut(&mut output_buffer) {
+                Ok(output_size) => { output_buffer.truncate(output_size) },
+                Err(_) => { return Err(Error::PaddingError(output_buffer)) },
+            }
+            if output_buffer.iter().any(|&byte| byte < 0x20 || 0x7f < byte) {
+                    return Err(Error::DecodingError(output_buffer));
+            }
+            Ok(output_buffer)
+        }
+
+        pub fn verify_key(&self, key: &[u8]) -> bool {
+            let mut result = 0;
+            for i in 0..Aes128::KEY_SIZE {
+                result |= key[i] ^ self.key[i];
+            }
+            result == 0
+        }
+    }
+    
+    impl Random for Oracle {
+        fn random() -> Self {
+            let key = random_vec!(Aes128::KEY_SIZE);
+            let cipher = Aes128Cbc::new(&key, &key).unwrap();
+            Oracle { key, cipher }
+        }
+    }
+}
+

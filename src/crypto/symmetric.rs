@@ -1,3 +1,5 @@
+use std::fmt;
+use std::error;
 use std::string::FromUtf8Error;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -5,6 +7,18 @@ pub enum Error {
     DecodingError,
     PaddingError,
     CipherError,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{:?}", self)
+    }
+}
+
+impl error::Error for Error {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        None
+    }
 }
 
 impl From<FromUtf8Error> for Error {
@@ -55,7 +69,8 @@ pub mod ciphers {
             Error::CipherError
         }
     }
-
+    
+    #[derive(Clone, Debug)]
     pub struct Aes128 {
         encrypt_key: aes::AES_KEY,
         decrypt_key: aes::AES_KEY
@@ -98,6 +113,7 @@ pub mod ciphers {
         }
     }
 
+    #[derive(Clone, Debug)]
     pub struct Aes256 {
         encrypt_key: aes::AES_KEY,
         decrypt_key: aes::AES_KEY
@@ -282,6 +298,7 @@ pub mod padding_modes {
         }
     }
 
+    #[derive(Clone, Debug)]
     pub struct Pkcs7 {
         block_size: usize
     }
@@ -441,6 +458,7 @@ pub mod cipher_modes {
     }
     
     /// Generic ECB-mode type.
+    #[derive(Clone, Debug)]
     pub struct Ecb<C: Cipher, P: PaddingMode> {
         cipher: C,
         padding: P
@@ -484,6 +502,7 @@ pub mod cipher_modes {
     }
 
     /// Generic CBC-mode type.
+    #[derive(Clone, Debug)]
     pub struct Cbc<C: Cipher, P: PaddingMode> {
         cipher: C,
         padding: P,
@@ -599,6 +618,7 @@ pub mod cipher_modes {
     }
 
     /// Generic CTR-mode type.
+    #[derive(Clone, Debug)]
     pub struct Ctr<C: Cipher> {
         cipher: C,
         nonce: Vec<u8>,
@@ -686,6 +706,7 @@ pub mod cipher_modes {
     }
 
     /// Repeating key XOR cipher.
+    #[derive(Debug, Clone)]
     pub struct RepeatingKeyXor {
         key: Vec<u8>,
         offset: usize
